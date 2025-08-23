@@ -1,0 +1,10 @@
+{
+  "name": "Thermal Printer Card",
+  "render_readme": true,
+  "content_in_root": false,
+  "filename": "thermal-printer-card.js",
+  "country": ["US", "CA", "GB", "AU", "DE", "FR", "NL", "SE", "NO", "DK"],
+  "homeassistant": "0.115.0",
+  "persistent_directory": false,
+  "iot_class": "Local Polling"
+}
