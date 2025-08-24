@@ -1,0 +1,158 @@
+
+rlatimer4/esphome-components
+master
+
+GITHUB
+
+With your help I created this ESPHome external component to control a thermal printer.  https://github.com/rlatimer4/esphome-components/tree/master/components/jura.  USE THIS WORKING CODE AS YOUR STARTING POINT.  
+This was adapted from this project, to bring it to the modern external_component type instead of the deprecated custom_component.  https://github.com/ryanalden/esphome-jura-component
+For my specific model of coffee maker the tank and tray status do not work.  Additionally the controls are some what different.  There are 6 buttons on the display, 3 on either side of the display.  The button's function varies depending on the current display setting.  
+Menu/Back and Next buttons are correct they are the bottom leftside and rightside buttons respectively.  
+The single espresso button is the top left button. 
+The coffee button is the top right button.
+the double espresso button is the middle left button.
+the double coffee button is the middle right button.  
+Update the rlatimer4 external_component and example yaml configuration based on the information above. The ESPhome device should optimistically track the current screen.
+Additionally create a custom lovelace card to control this machine.
+There are two screens for making coffee, which Next toggles between.
+The screens have the following button layouts:
+First screen after power-on:
+Espresso | Coffee
+Ristretto | Hot Water
+Menu | Next 
+Second Screen: 
+Cappuccino | Flat White
+Latte Macciato | 1 portion milk
+Menu | Next 
+After a brewing command is sent, the middle buttons will increase and decrease brew strength for 4 seconds, and for the next 10 seconds the middle buttons can adjust brew volume.  The lower left button will cancel the brew.  For hot water and milk dispensing the middle buttons just adjust volume, and the lower left button will cancel the brew.
+There are 5 Menu screens that get cycled through, return takes you back to the first coffee screen.
+Menu 1:
+Clean | Clean Milk System
+Descale | Filter Status
+Return | Next 
+Menu 2:
+Rinse Milk System | Rinse Coffee System
+Information | Filter 
+Return | Next 
+Menu 3:
+Expert Mode | 
+ | 
+Return | Next 
+Menu 4:
+Choose Language | Switch off after
+Units | Rinse Milk system
+Return | Next 
+Menu 5:
+Water Hardness | 
+ | 
+Return | Next
+
+I'll help you update the ESPHome external component and create a comprehensive solution for your coffee machine. Let me start by updating the component files and then create a custom Lovelace card.
+
+
+Updated Jura Component (__init__.py)
+Code 
+
+Updated Jura Component (jura.h)
+Code 
+
+Updated Jura ESPHome Configuration (jura_coffee.yaml)
+Code 
+
+
+
+Continue
+
+
+Updated Jura ESPHome Configuration (jura_coffee.yaml)
+Code ∙ Version 2 
+Now let me create the custom Lovelace card for controlling the coffee machine:
+
+
+Jura Coffee Machine Lovelace Card
+Interactive artifact 
+Now let me create the Home Assistant Lovelace card configuration file:
+
+
+Home Assistant Lovelace Card Configuration
+Code 
+
+
+
+Continue
+
+
+Home Assistant Lovelace Card Configuration
+Code ∙ Version 2 
+Now let me create the custom Lovelace card JavaScript file that integrates with Home Assistant:
+
+
+Jura Coffee Machine Custom Card (jura-coffee-card.js)
+Code 
+Finally, let me create a README file with installation and setup instructions:
+
+
+Updated README with Custom Card Instructions
+Document 
+
+
+
+
+
+
+
+# Home Assistant Lovelace Card Configuration
+# Add this to your dashboard YAML or use the UI editor
+
+type: custom:jura-coffee-card
+entity: switch.coffee_machine_power
+name: Jura Coffee Machine
+
+# Required entities (adjust entity IDs to match your ESPHome device)
+entities:
+  # Power control
+  power: switch.coffee_machine_power
+  
+  # Current screen and state
+  current_screen: text_sensor.current_screen
+  is_brewing: binary_sensor.is_brewing
+  brew_timer: sensor.brew_timer
+  
+  # Button functions (for dynamic labeling)
+  top_left_function: text_sensor.top_left_button_function
+  top_right_function: text_sensor.top_right_button_function
+  middle_left_function: text_sensor.middle_left_button_function
+  middle_right_function: text_sensor.middle_right_button_function
+  bottom_left_function: text_sensor.bottom_left_button_function
+  bottom_right_function: text_sensor.bottom_right_button_function
+  
+  # Physical buttons for control
+  buttons:
+    top_left: button.top_left_button
+    top_right: button.top_right_button
+    middle_left: button.middle_left_button
+    middle_right: button.middle_right_button
+    bottom_left: button.menu_back_cancel_button
+    bottom_right: button.next_button
+  
+  # Coffee statistics
+  stats:
+    single_espresso: sensor.single_espressos_made
+    double_espresso: sensor.double_espressos_made
+    coffee: sensor.coffees_made
+    double_coffee: sensor.double_coffees_made
+    total_today: sensor.total_coffees_made_today
+    cleanings: sensor.cleanings_performed
+
+# Card styling options
+style:
+  background_color: '#2c3e50'
+  accent_color: '#e67e22'
+  text_color: '#ecf0f1'
+  
+# Optional: Hide specific elements
+show:
+  power_button: true
+  statistics: true
+  connection_status: true
+  brew_timer: true
