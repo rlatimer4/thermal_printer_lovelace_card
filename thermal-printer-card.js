@@ -635,6 +635,7 @@ class ThermalPrinterCard extends HTMLElement {
     const bold = shadowRoot.getElementById('text-bold').checked;
     const underline = shadowRoot.getElementById('text-underline').checked;
     const inverse = shadowRoot.getElementById('text-inverse').checked;
+    const rotate = shadowRoot.getElementById('text-rotate').checked;
 
     if (!text.trim()) {
       this.clearPreview();
@@ -645,18 +646,74 @@ class ThermalPrinterCard extends HTMLElement {
     const widths = { 'S': 32, 'M': 24, 'L': 16 };
     this.previewWidth = widths[size];
 
-    let previewText = this.formatTextForPreview(text, justify, this.previewWidth);
+    let previewText;
     
-    if (bold) previewText = this.wrapText(previewText, '**', '**');
-    if (underline) previewText = this.wrapText(previewText, '__', '__');
-    if (inverse) previewText = this.wrapText(previewText, '██', '██');
+    if (rotate) {
+      // Show vertical preview for rotation
+      previewText = this.formatVerticalPreview(text);
+    } else {
+      previewText = this.formatTextForPreview(text, justify, this.previewWidth);
+    }
 
     const previewPaper = shadowRoot.getElementById('preview-paper');
-    const fontSize = size === 'L' ? '16px' : size === 'M' ? '14px' : '12px';
+    
+    // Apply accurate font styling
+    let fontSize = '12px';
+    let fontWeight = 'normal';
+    let textDecoration = 'none';
+    let backgroundColor = 'white';
+    let color = 'black';
+    
+    if (size === 'L') {
+      fontSize = '18px';
+      fontWeight = 'bold';
+    } else if (size === 'M') {
+      fontSize = '15px';
+      fontWeight = '500';
+    }
+    
+    if (bold) fontWeight = 'bold';
+    if (underline) textDecoration = 'underline';
+    if (inverse) {
+      backgroundColor = 'black';
+      color = 'white';
+    }
+    
+    // Apply styles to preview
     previewPaper.style.fontSize = fontSize;
+    previewPaper.style.fontWeight = fontWeight;
+    previewPaper.style.textDecoration = textDecoration;
+    previewPaper.style.backgroundColor = backgroundColor;
+    previewPaper.style.color = color;
+    previewPaper.style.padding = '12px';
+    
+    // Set text alignment
+    if (justify === 'C') {
+      previewPaper.style.textAlign = 'center';
+    } else if (justify === 'R') {
+      previewPaper.style.textAlign = 'right';
+    } else {
+      previewPaper.style.textAlign = 'left';
+    }
+    
     previewPaper.textContent = previewText;
 
     this.updatePreviewStats(previewText);
+  }
+
+  formatVerticalPreview(text) {
+    // Create vertical text preview
+    let verticalText = '';
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === ' ') {
+        verticalText += '·\n'; // Visual space indicator
+      } else if (text[i] === '\n') {
+        verticalText += '\n\n'; // Extra line for paragraph breaks
+      } else {
+        verticalText += text[i] + '\n';
+      }
+    }
+    return verticalText;
   }
 
   updateColumnPreview() {
@@ -691,10 +748,31 @@ class ThermalPrinterCard extends HTMLElement {
 
     if (rotateEnabled) {
       const text = shadowRoot.getElementById('text-input').value;
-      rotatedPreview.textContent = text;
+      
+      // Create vertical preview text
+      let verticalText = '';
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === ' ') {
+          verticalText += '·\n'; // Visual space indicator
+        } else if (text[i] === '\n') {
+          verticalText += '\n\n'; // Extra space for line breaks
+        } else {
+          verticalText += text[i] + '\n';
+        }
+      }
+      
+      rotatedPreview.textContent = verticalText;
+      rotatedPreview.style.textAlign = 'center';
+      rotatedPreview.style.lineHeight = '1.2';
+      rotatedPreview.style.letterSpacing = '2px';
       rotationPreview.style.display = 'block';
+      
+      // Update the main preview too
+      this.updatePreview();
     } else {
       rotationPreview.style.display = 'none';
+      // Update preview without rotation
+      this.updatePreview();
     }
   }
 
