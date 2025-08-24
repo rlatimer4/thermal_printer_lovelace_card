@@ -1,478 +1,576 @@
-class ThermalPrinterCard extends HTMLElement {
+class JuraCoffeeCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._config = {};
+    this._hass = {};
   }
 
   setConfig(config) {
-    if (!config.entity) {
-      throw new Error('You need to define an entity');
+    if (!config.entities || !config.entities.power) {
+      throw new Error('You need to define entities.power');
     }
-
-    const root = this.shadowRoot;
-    if (root.lastChild) root.removeChild(root.lastChild);
-
-    const cardConfig = Object.assign({}, config);
-
-    const card = document.createElement('ha-card');
-    card.header = config.title || 'Thermal Printer';
-    const content = document.createElement('div');
-    content.className = 'card-content';
-
-    content.innerHTML = `
-      <style>
-        .printer-status {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-          padding: 12px;
-          background: var(--primary-color);
-          color: var(--text-primary-color);
-          border-radius: 8px;
-        }
-        .status-indicator {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .status-dot {
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          background: var(--success-color);
-        }
-        .status-dot.error {
-          background: var(--error-color);
-        }
-        .status-dot.warning {
-          background: var(--warning-color);
-        }
-        .usage-section {
-          margin: 16px 0;
-          padding: 12px;
-          background: var(--card-background-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
-        }
-        .usage-bar {
-          width: 100%;
-          height: 20px;
-          background: var(--disabled-text-color);
-          border-radius: 10px;
-          overflow: hidden;
-          margin: 8px 0;
-        }
-        .usage-fill {
-          height: 100%;
-          background: linear-gradient(90deg, var(--success-color), var(--warning-color), var(--error-color));
-          transition: width 0.3s ease;
-        }
-        .usage-stats {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          font-size: 0.9em;
-          color: var(--secondary-text-color);
-        }
-        .control-section {
-          margin: 16px 0;
-        }
-        .control-row {
-          display: flex;
-          gap: 8px;
-          margin: 8px 0;
-          flex-wrap: wrap;
-        }
-        .control-button {
-          flex: 1;
-          min-width: 100px;
-          padding: 10px;
-          border: none;
-          border-radius: 8px;
-          background: var(--primary-color);
-          color: var(--text-primary-color);
-          cursor: pointer;
-          font-size: 0.9em;
-          transition: all 0.2s ease;
-        }
-        .control-button:hover {
-          background: var(--primary-color);
-          filter: brightness(1.1);
-        }
-        .control-button:disabled {
-          background: var(--disabled-text-color);
-          cursor: not-allowed;
-        }
-        .control-button.secondary {
-          background: var(--secondary-color);
-        }
-        .control-button.danger {
-          background: var(--error-color);
-        }
-        .text-input-section {
-          margin: 16px 0;
-          padding: 12px;
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
-        }
-        .text-input {
-          width: 100%;
-          min-height: 60px;
-          padding: 8px;
-          border: 1px solid var(--divider-color);
-          border-radius: 4px;
-          resize: vertical;
-          font-family: monospace;
-          margin: 8px 0;
-        }
-        .format-controls {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-          gap: 8px;
-          margin: 8px 0;
-        }
-        .format-select {
-          padding: 6px;
-          border: 1px solid var(--divider-color);
-          border-radius: 4px;
-          background: var(--card-background-color);
-        }
-        .two-column-section {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          margin: 8px 0;
-        }
-        .column-input {
-          width: 100%;
-          padding: 8px;
-          border: 1px solid var(--divider-color);
-          border-radius: 4px;
-        }
-        .section-header {
-          font-weight: bold;
-          margin: 16px 0 8px 0;
-          color: var(--primary-text-color);
-        }
-        .barcode-section {
-          margin: 12px 0;
-          padding: 12px;
-          background: var(--secondary-background-color);
-          border-radius: 8px;
-        }
-        .collapsible {
-          cursor: pointer;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px;
-          background: var(--divider-color);
-          border-radius: 4px;
-          margin: 8px 0;
-        }
-        .collapsible-content {
-          display: none;
-          margin-top: 8px;
-        }
-        .collapsible.active + .collapsible-content {
-          display: block;
-        }
-      </style>
-
-      <div class="printer-status">
-        <div class="status-indicator">
-          <div class="status-dot" id="status-dot"></div>
-          <span id="status-text">Printer Ready</span>
-        </div>
-        <div>
-          <span>Online</span>
-        </div>
-      </div>
-
-      <div class="usage-section">
-        <div class="section-header">Paper Usage</div>
-        <div class="usage-bar">
-          <div class="usage-fill" id="usage-fill" style="width: 0%"></div>
-        </div>
-        <div class="usage-stats">
-          <div>Used: <span id="usage-mm">0</span> mm</div>
-          <div>Percentage: <span id="usage-percent">0</span>%</div>
-          <div>Lines: <span id="lines-printed">0</span></div>
-          <div>Characters: <span id="chars-printed">0</span></div>
-        </div>
-      </div>
-
-      <div class="control-section">
-        <div class="section-header">Quick Actions</div>
-        <div class="control-row">
-          <button class="control-button" id="test-print">Test Print</button>
-          <button class="control-button secondary" id="wake-printer">Wake</button>
-          <button class="control-button secondary" id="sleep-printer">Sleep</button>
-          <button class="control-button danger" id="reset-usage">Reset Usage</button>
-        </div>
-        <div class="control-row">
-          <button class="control-button" id="feed-paper">Feed Paper</button>
-          <button class="control-button" id="print-separator">Print Separator</button>
-        </div>
-      </div>
-
-      <div class="text-input-section">
-        <div class="collapsible" id="text-toggle">
-          <span class="section-header">Text Printing</span>
-          <span>▼</span>
-        </div>
-        <div class="collapsible-content" id="text-content">
-          <textarea class="text-input" id="text-input" placeholder="Enter text to print..."></textarea>
-          <div class="format-controls">
-            <select class="format-select" id="text-size">
-              <option value="S">Small</option>
-              <option value="M" selected>Medium</option>
-              <option value="L">Large</option>
-            </select>
-            <select class="format-select" id="text-justify">
-              <option value="L" selected>Left</option>
-              <option value="C">Center</option>
-              <option value="R">Right</option>
-            </select>
-            <label><input type="checkbox" id="text-bold"> Bold</label>
-            <label><input type="checkbox" id="text-underline"> Underline</label>
-            <label><input type="checkbox" id="text-inverse"> Inverse</label>
-          </div>
-          <button class="control-button" id="print-text">Print Text</button>
-        </div>
-      </div>
-
-      <div class="text-input-section">
-        <div class="collapsible" id="column-toggle">
-          <span class="section-header">Two-Column Printing</span>
-          <span>▼</span>
-        </div>
-        <div class="collapsible-content" id="column-content">
-          <div class="two-column-section">
-            <input class="column-input" id="left-column" placeholder="Left column text">
-            <input class="column-input" id="right-column" placeholder="Right column text">
-          </div>
-          <div class="format-controls">
-            <select class="format-select" id="column-text-size">
-              <option value="S">Small</option>
-              <option value="M" selected>Medium</option>
-              <option value="L">Large</option>
-            </select>
-            <label><input type="checkbox" id="fill-dots" checked> Fill with dots</label>
-          </div>
-          <button class="control-button" id="print-columns">Print Two Columns</button>
-        </div>
-      </div>
-
-      <div class="barcode-section">
-        <div class="collapsible" id="barcode-toggle">
-          <span class="section-header">Barcode Printing</span>
-          <span>▼</span>
-        </div>
-        <div class="collapsible-content" id="barcode-content">
-          <select class="format-select" id="barcode-type" style="width: 100%; margin: 8px 0;">
-            <option value="0">UPC-A</option>
-            <option value="1">UPC-E</option>
-            <option value="2">EAN13</option>
-            <option value="3">EAN8</option>
-            <option value="4">CODE39</option>
-            <option value="5">ITF</option>
-            <option value="6">CODABAR</option>
-            <option value="7">CODE93</option>
-            <option value="8" selected>CODE128</option>
-          </select>
-          <input class="column-input" id="barcode-data" placeholder="Barcode data" style="width: 100%; margin: 8px 0;">
-          <button class="control-button" id="print-barcode">Print Barcode</button>
-        </div>
-      </div>
-    `;
-
-    card.appendChild(content);
-    root.appendChild(card);
-
-    this._config = cardConfig;
-    this.setupEventListeners();
-    this.setupCollapsibles();
-  }
-
-  setupEventListeners() {
-    const shadowRoot = this.shadowRoot;
-
-    // Quick action buttons
-    shadowRoot.getElementById('test-print').onclick = () => this.callService('test_print');
-    shadowRoot.getElementById('wake-printer').onclick = () => this.callService('wake_printer');
-    shadowRoot.getElementById('sleep-printer').onclick = () => this.callService('sleep_printer');
-    shadowRoot.getElementById('reset-usage').onclick = () => this.confirmAction(() => this.callService('reset_paper_usage'));
-    shadowRoot.getElementById('feed-paper').onclick = () => this.callService('feed_paper', { lines: 3 });
-    shadowRoot.getElementById('print-separator').onclick = () => this.printSeparator();
-
-    // Text printing
-    shadowRoot.getElementById('print-text').onclick = () => this.printText();
-
-    // Two-column printing
-    shadowRoot.getElementById('print-columns').onclick = () => this.printTwoColumn();
-
-    // Barcode printing
-    shadowRoot.getElementById('print-barcode').onclick = () => this.printBarcode();
-  }
-
-  setupCollapsibles() {
-    const shadowRoot = this.shadowRoot;
-    const collapsibles = ['text-toggle', 'column-toggle', 'barcode-toggle'];
-
-    collapsibles.forEach(id => {
-      const toggle = shadowRoot.getElementById(id);
-      toggle.onclick = () => {
-        toggle.classList.toggle('active');
-        const arrow = toggle.querySelector('span:last-child');
-        arrow.textContent = toggle.classList.contains('active') ? '▲' : '▼';
-      };
-    });
-  }
-
-  printText() {
-    const shadowRoot = this.shadowRoot;
-    const text = shadowRoot.getElementById('text-input').value;
-    if (!text.trim()) {
-      alert('Please enter some text to print');
-      return;
-    }
-
-    const data = {
-      text: text,
-      size: shadowRoot.getElementById('text-size').value,
-      justify: shadowRoot.getElementById('text-justify').value,
-      bold: shadowRoot.getElementById('text-bold').checked,
-      underline: shadowRoot.getElementById('text-underline').checked,
-      inverse: shadowRoot.getElementById('text-inverse').checked
-    };
-
-    this.callService('print_text', data);
-  }
-
-  printTwoColumn() {
-    const shadowRoot = this.shadowRoot;
-    const leftText = shadowRoot.getElementById('left-column').value;
-    const rightText = shadowRoot.getElementById('right-column').value;
-
-    if (!leftText.trim() && !rightText.trim()) {
-      alert('Please enter text for at least one column');
-      return;
-    }
-
-    const data = {
-      left_text: leftText,
-      right_text: rightText,
-      fill_dots: shadowRoot.getElementById('fill-dots').checked,
-      text_size: shadowRoot.getElementById('column-text-size').value
-    };
-
-    this.callService('print_two_column', data);
-  }
-
-  printBarcode() {
-    const shadowRoot = this.shadowRoot;
-    const barcodeData = shadowRoot.getElementById('barcode-data').value;
-    if (!barcodeData.trim()) {
-      alert('Please enter barcode data');
-      return;
-    }
-
-    const data = {
-      barcode_type: parseInt(shadowRoot.getElementById('barcode-type').value),
-      barcode_data: barcodeData
-    };
-
-    this.callService('print_barcode', data);
-  }
-
-  printSeparator() {
-    const data = {
-      text: '================================',
-      size: 'S',
-      justify: 'C',
-      bold: false,
-      underline: false,
-      inverse: false
-    };
-    this.callService('print_text', data);
-  }
-
-  confirmAction(action) {
-    if (confirm('Are you sure you want to perform this action?')) {
-      action();
-    }
-  }
-
-  callService(service, data = {}) {
-    const [domain, entityId] = this._config.entity.split('.');
-    const serviceName = `${domain}.${service}`;
-
-    this._hass.callService('esphome', `thermal_printer_${service}`, data);
+    this._config = config;
+    this.render();
   }
 
   set hass(hass) {
     this._hass = hass;
-    
-    const entity = hass.states[this._config.entity];
-    if (!entity) return;
-
-    this.updateStatus(hass);
+    this.updateCard();
   }
 
-  updateStatus(hass) {
-    const shadowRoot = this.shadowRoot;
-    
-    // Simple status - just show printer as ready
-    const statusDot = shadowRoot.getElementById('status-dot');
-    const statusText = shadowRoot.getElementById('status-text');
-    
-    statusDot.className = 'status-dot';
-    statusText.textContent = 'Ready';
+  render() {
+    const style = `
+      <style>
+        :host {
+          display: block;
+          background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+          border-radius: 16px;
+          padding: 20px;
+          color: white;
+          font-family: var(--paper-font-body1_-_font-family);
+          box-shadow: var(--ha-card-box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
+        }
 
-    // Update paper usage
-    const usageEntity = hass.states[this._config.usage_sensor || 'sensor.thermal_printer_paper_usage_percent'];
-    const usageMmEntity = hass.states[this._config.usage_mm_sensor || 'sensor.thermal_printer_paper_usage_mm'];
-    const linesEntity = hass.states[this._config.lines_sensor || 'sensor.thermal_printer_lines_printed'];
-    const charsEntity = hass.states[this._config.chars_sensor || 'sensor.thermal_printer_characters_printed'];
+        .card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+          padding-bottom: 15px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
 
-    if (usageEntity) {
-      const usageFill = shadowRoot.getElementById('usage-fill');
-      const usagePercent = shadowRoot.getElementById('usage-percent');
-      const percentage = parseFloat(usageEntity.state) || 0;
+        .machine-icon {
+          font-size: 2em;
+          color: #e67e22;
+          animation: steam 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes steam {
+          0% { transform: translateY(0px); opacity: 1; }
+          100% { transform: translateY(-3px); opacity: 0.8; }
+        }
+
+        .machine-title {
+          font-size: 1.4em;
+          font-weight: 600;
+          margin: 0;
+          margin-left: 10px;
+        }
+
+        .power-switch {
+          background: #27ae60;
+          border: none;
+          border-radius: 50%;
+          width: 50px;
+          height: 50px;
+          color: white;
+          font-size: 1.2em;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .power-switch:hover {
+          background: #2ecc71;
+          transform: scale(1.1);
+        }
+
+        .power-switch.off {
+          background: #e74c3c;
+        }
+
+        .power-switch.off:hover {
+          background: #c0392b;
+        }
+
+        .screen-display {
+          background: #1a252f;
+          border-radius: 12px;
+          padding: 15px;
+          margin-bottom: 20px;
+          border: 2px solid #34495e;
+          min-height: 80px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .screen-title {
+          font-size: 1.2em;
+          color: #3498db;
+          margin-bottom: 5px;
+          text-align: center;
+        }
+
+        .brewing-status {
+          font-size: 0.9em;
+          color: #e67e22;
+          text-align: center;
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+
+        .button-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-template-rows: repeat(3, 1fr);
+          gap: 12px;
+          margin-bottom: 20px;
+          min-height: 200px;
+        }
+
+        .coffee-button {
+          background: linear-gradient(145deg, #3498db, #2980b9);
+          border: none;
+          border-radius: 12px;
+          color: white;
+          padding: 15px 8px;
+          font-size: 0.85em;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .coffee-button:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+
+        .coffee-button:active {
+          transform: translateY(0px);
+        }
+
+        .coffee-button.brewing {
+          background: linear-gradient(145deg, #e67e22, #d35400);
+          animation: pulse 1s ease-in-out infinite;
+        }
+
+        .coffee-button.menu {
+          background: linear-gradient(145deg, #9b59b6, #8e44ad);
+        }
+
+        .coffee-button.disabled {
+          background: #7f8c8d;
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
+        .coffee-button .button-icon {
+          font-size: 1.5em;
+          margin-bottom: 5px;
+        }
+
+        .stats-section {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          padding: 15px;
+          margin-top: 15px;
+        }
+
+        .stats-title {
+          font-size: 1em;
+          font-weight: 600;
+          margin-bottom: 10px;
+          color: #ecf0f1;
+        }
+
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+        }
+
+        .stat-item {
+          text-align: center;
+          padding: 8px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+        }
+
+        .stat-label {
+          font-size: 0.8em;
+          color: #bdc3c7;
+          margin-bottom: 2px;
+        }
+
+        .stat-value {
+          font-size: 1.1em;
+          font-weight: 600;
+          color: #ecf0f1;
+        }
+
+        .connection-status {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-top: 15px;
+          font-size: 0.9em;
+          color: #95a5a6;
+        }
+
+        .status-indicator {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #27ae60;
+          margin-right: 8px;
+          animation: blink 2s linear infinite;
+        }
+
+        .status-indicator.offline {
+          background: #e74c3c;
+          animation: none;
+        }
+
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0.3; }
+        }
+      </style>
+    `;
+
+    const html = `
+      <div class="card-content">
+        <!-- Header -->
+        <div class="card-header">
+          <div style="display: flex; align-items: center;">
+            <div class="machine-icon">☕</div>
+            <h3 class="machine-title">${this._config.name || 'Jura Coffee'}</h3>
+          </div>
+          <button class="power-switch" id="powerButton">
+            <span id="powerIcon">⚡</span>
+          </button>
+        </div>
+
+        <!-- Screen Display -->
+        <div class="screen-display">
+          <div class="screen-title" id="screenTitle">Coffee Screen 1</div>
+          <div class="brewing-status" id="brewingStatus" style="display: none;">
+            ⏱️ Brewing... <span id="brewTimer">0s</span>
+          </div>
+        </div>
+
+        <!-- Button Grid -->
+        <div class="button-grid">
+          <!-- Top Row -->
+          <button class="coffee-button" id="topLeft">
+            <div class="button-icon" id="topLeftIcon">☕</div>
+            <span id="topLeftLabel">Espresso</span>
+          </button>
+          <button class="coffee-button" id="topRight">
+            <div class="button-icon" id="topRightIcon">☕</div>
+            <span id="topRightLabel">Coffee</span>
+          </button>
+          
+          <!-- Middle Row -->
+          <button class="coffee-button" id="middleLeft">
+            <div class="button-icon" id="middleLeftIcon">☕</div>
+            <span id="middleLeftLabel">Ristretto</span>
+          </button>
+          <button class="coffee-button" id="middleRight">
+            <div class="button-icon" id="middleRightIcon">💧</div>
+            <span id="middleRightLabel">Hot Water</span>
+          </button>
+          
+          <!-- Bottom Row -->
+          <button class="coffee-button menu" id="bottomLeft">
+            <div class="button-icon" id="bottomLeftIcon">📋</div>
+            <span id="bottomLeftLabel">Menu</span>
+          </button>
+          <button class="coffee-button menu" id="bottomRight">
+            <div class="button-icon" id="bottomRightIcon">➡️</div>
+            <span id="bottomRightLabel">Next</span>
+          </button>
+        </div>
+
+        <!-- Statistics Section -->
+        <div class="stats-section" id="statsSection">
+          <div class="stats-title">📊 Coffee Statistics</div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-label">Single Espresso</div>
+              <div class="stat-value" id="singleEspressoCount">-</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Double Espresso</div>
+              <div class="stat-value" id="doubleEspressoCount">-</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Coffee</div>
+              <div class="stat-value" id="coffeeCount">-</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Double Coffee</div>
+              <div class="stat-value" id="doubleCoffeeCount">-</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Status -->
+        <div class="connection-status" id="connectionStatus">
+          <div class="status-indicator" id="statusIndicator"></div>
+          <span id="connectionText">Connected</span>
+        </div>
+      </div>
+    `;
+
+    this.shadowRoot.innerHTML = style + html;
+    this.setupEventListeners();
+  }
+
+  setupEventListeners() {
+    // Power button
+    const powerButton = this.shadowRoot.getElementById('powerButton');
+    powerButton.addEventListener('click', () => this.togglePower());
+
+    // Coffee buttons
+    const buttons = ['topLeft', 'topRight', 'middleLeft', 'middleRight', 'bottomLeft', 'bottomRight'];
+    buttons.forEach(buttonId => {
+      const button = this.shadowRoot.getElementById(buttonId);
+      button.addEventListener('click', () => this.pressButton(buttonId));
+    });
+  }
+
+  updateCard() {
+    if (!this._hass || !this._config.entities) return;
+
+    // Update power status
+    this.updatePowerStatus();
+    
+    // Update screen display
+    this.updateScreenDisplay();
+    
+    // Update button labels
+    this.updateButtonLabels();
+    
+    // Update statistics
+    this.updateStatistics();
+    
+    // Update connection status
+    this.updateConnectionStatus();
+  }
+
+  updatePowerStatus() {
+    const powerEntity = this._hass.states[this._config.entities.power];
+    const powerButton = this.shadowRoot.getElementById('powerButton');
+    const powerIcon = this.shadowRoot.getElementById('powerIcon');
+
+    if (powerEntity && powerEntity.state === 'on') {
+      powerButton.classList.remove('off');
+      powerIcon.textContent = '⚡';
+    } else {
+      powerButton.classList.add('off');
+      powerIcon.textContent = '⭕';
+    }
+  }
+
+  updateScreenDisplay() {
+    const screenEntity = this._hass.states[this._config.entities.current_screen];
+    const brewingEntity = this._hass.states[this._config.entities.is_brewing];
+    const timerEntity = this._hass.states[this._config.entities.brew_timer];
+
+    const screenTitle = this.shadowRoot.getElementById('screenTitle');
+    const brewingStatus = this.shadowRoot.getElementById('brewingStatus');
+    const brewTimer = this.shadowRoot.getElementById('brewTimer');
+
+    // Update screen title
+    if (screenEntity) {
+      screenTitle.textContent = screenEntity.state;
+    }
+
+    // Update brewing status
+    if (brewingEntity && brewingEntity.state === 'on') {
+      brewingStatus.style.display = 'block';
+      if (timerEntity) {
+        brewTimer.textContent = Math.round(parseFloat(timerEntity.state)) + 's';
+      }
+    } else {
+      brewingStatus.style.display = 'none';
+    }
+  }
+
+  updateButtonLabels() {
+    const buttons = [
+      { id: 'topLeft', entity: this._config.entities.top_left_function },
+      { id: 'topRight', entity: this._config.entities.top_right_function },
+      { id: 'middleLeft', entity: this._config.entities.middle_left_function },
+      { id: 'middleRight', entity: this._config.entities.middle_right_function },
+      { id: 'bottomLeft', entity: this._config.entities.bottom_left_function },
+      { id: 'bottomRight', entity: this._config.entities.bottom_right_function }
+    ];
+
+    const brewingEntity = this._hass.states[this._config.entities.is_brewing];
+    const isBrewing = brewingEntity && brewingEntity.state === 'on';
+
+    buttons.forEach(button => {
+      const buttonElement = this.shadowRoot.getElementById(button.id);
+      const labelElement = this.shadowRoot.getElementById(button.id + 'Label');
+      const iconElement = this.shadowRoot.getElementById(button.id + 'Icon');
       
-      usageFill.style.width = `${Math.min(percentage, 100)}%`;
-      usagePercent.textContent = percentage.toFixed(1);
-    }
+      if (button.entity && this._hass.states[button.entity]) {
+        const functionText = this._hass.states[button.entity].state;
+        labelElement.textContent = functionText;
 
-    if (usageMmEntity) {
-      const usageMm = shadowRoot.getElementById('usage-mm');
-      usageMm.textContent = parseFloat(usageMmEntity.state).toFixed(1);
-    }
+        // Update icons based on function
+        const icon = this.getIconForFunction(functionText);
+        iconElement.textContent = icon;
 
-    if (linesEntity) {
-      const linesPrinted = shadowRoot.getElementById('lines-printed');
-      linesPrinted.textContent = linesEntity.state;
-    }
+        // Handle button states
+        if (functionText === 'N/A' || functionText === '') {
+          buttonElement.classList.add('disabled');
+        } else {
+          buttonElement.classList.remove('disabled');
+        }
 
-    if (charsEntity) {
-      const charsPrinted = shadowRoot.getElementById('chars-printed');
-      charsPrinted.textContent = charsEntity.state;
+        // Add brewing animation for relevant buttons
+        if (isBrewing && (button.id === 'middleLeft' || button.id === 'middleRight')) {
+          buttonElement.classList.add('brewing');
+        } else {
+          buttonElement.classList.remove('brewing');
+        }
+      }
+    });
+  }
+
+  updateStatistics() {
+    const stats = [
+      { id: 'singleEspressoCount', entity: this._config.entities.stats?.single_espresso },
+      { id: 'doubleEspressoCount', entity: this._config.entities.stats?.double_espresso },
+      { id: 'coffeeCount', entity: this._config.entities.stats?.coffee },
+      { id: 'doubleCoffeeCount', entity: this._config.entities.stats?.double_coffee }
+    ];
+
+    stats.forEach(stat => {
+      if (stat.entity && this._hass.states[stat.entity]) {
+        const element = this.shadowRoot.getElementById(stat.id);
+        element.textContent = Math.round(parseFloat(this._hass.states[stat.entity].state));
+      }
+    });
+  }
+
+  updateConnectionStatus() {
+    const indicator = this.shadowRoot.getElementById('statusIndicator');
+    const text = this.shadowRoot.getElementById('connectionText');
+    
+    // Check if main entities are available
+    const powerEntity = this._hass.states[this._config.entities.power];
+    const isConnected = powerEntity && powerEntity.last_updated;
+
+    if (isConnected) {
+      indicator.classList.remove('offline');
+      text.textContent = 'Connected';
+    } else {
+      indicator.classList.add('offline');
+      text.textContent = 'Offline';
+    }
+  }
+
+  getIconForFunction(functionText) {
+    const iconMap = {
+      'Espresso': '☕',
+      'Coffee': '☕',
+      'Ristretto': '☕',
+      'Hot Water': '💧',
+      'Cappuccino': '☕',
+      'Flat White': '☕',
+      'Latte Macchiato': '☕',
+      '1 Portion Milk': '🥛',
+      'Clean': '🧽',
+      'Clean Milk': '🧽',
+      'Descale': '🔧',
+      'Filter Status': '🔍',
+      'Rinse Milk': '🧽',
+      'Rinse Coffee': '🧽',
+      'Information': 'ℹ️',
+      'Filter': '🔧',
+      'Expert Mode': '⚙️',
+      'Language': '🌐',
+      'Switch Off After': '⏰',
+      'Units': '📏',
+      'Water Hardness': '💧',
+      'Menu': '📋',
+      'Return': '↩️',
+      'Next': '➡️',
+      'Cancel': '❌',
+      'Strength +': '💪',
+      'Strength -': '👇',
+      'Volume +': '🔊',
+      'Volume -': '🔉'
+    };
+    
+    return iconMap[functionText] || '❓';
+  }
+
+  togglePower() {
+    const powerEntity = this._config.entities.power;
+    const currentState = this._hass.states[powerEntity].state;
+    const service = currentState === 'on' ? 'turn_off' : 'turn_on';
+    
+    this._hass.callService('switch', service, {
+      entity_id: powerEntity
+    });
+  }
+
+  pressButton(buttonId) {
+    const buttonMap = {
+      'topLeft': this._config.entities.buttons?.top_left,
+      'topRight': this._config.entities.buttons?.top_right,
+      'middleLeft': this._config.entities.buttons?.middle_left,
+      'middleRight': this._config.entities.buttons?.middle_right,
+      'bottomLeft': this._config.entities.buttons?.bottom_left,
+      'bottomRight': this._config.entities.buttons?.bottom_right
+    };
+
+    const entityId = buttonMap[buttonId];
+    if (entityId) {
+      this._hass.callService('button', 'press', {
+        entity_id: entityId
+      });
     }
   }
 
   getCardSize() {
-    return 6;
+    return 6; // Height in grid rows
+  }
+
+  static get properties() {
+    return {
+      hass: Object,
+      config: Object
+    };
   }
 }
 
-customElements.define('thermal-printer-card', ThermalPrinterCard);
+// Register the custom card
+customElements.define('jura-coffee-card', JuraCoffeeCard);
 
-// Register the card with the card picker
+// Add card to Home Assistant card picker
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'thermal-printer-card',
-  name: 'Thermal Printer Card',
-  description: 'A card for controlling thermal printers'
+  type: 'jura-coffee-card',
+  name: 'Jura Coffee Machine Card',
+  description: 'A custom card for controlling Jura coffee machines via ESPHome',
+  preview: false, // Optional: set to true if you provide a preview image
+  documentationURL: 'https://github.com/rlatimer4/esphome-components/tree/master/components/jura'
 });
+
+console.info(
+  `%c  JURA-COFFEE-CARD %c  Version 1.0.0  `,
+  'color: orange; font-weight: bold; background: black',
+  'color: white; font-weight: bold; background: dimgray'
+);
