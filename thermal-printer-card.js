@@ -183,10 +183,10 @@ class ThermalPrinterCard extends HTMLElement {
       <div class="printer-status">
         <div class="status-indicator">
           <div class="status-dot" id="status-dot"></div>
-          <span id="status-text">Checking...</span>
+          <span id="status-text">Printer Ready</span>
         </div>
         <div>
-          <span id="paper-status">Unknown</span>
+          <span>Online</span>
         </div>
       </div>
 
@@ -253,7 +253,14 @@ class ThermalPrinterCard extends HTMLElement {
             <input class="column-input" id="left-column" placeholder="Left column text">
             <input class="column-input" id="right-column" placeholder="Right column text">
           </div>
-          <label><input type="checkbox" id="fill-dots" checked> Fill with dots</label>
+          <div class="format-controls">
+            <select class="format-select" id="column-text-size">
+              <option value="S">Small</option>
+              <option value="M" selected>Medium</option>
+              <option value="L">Large</option>
+            </select>
+            <label><input type="checkbox" id="fill-dots" checked> Fill with dots</label>
+          </div>
           <button class="control-button" id="print-columns">Print Two Columns</button>
         </div>
       </div>
@@ -357,7 +364,8 @@ class ThermalPrinterCard extends HTMLElement {
     const data = {
       left_text: leftText,
       right_text: rightText,
-      fill_dots: shadowRoot.getElementById('fill-dots').checked
+      fill_dots: shadowRoot.getElementById('fill-dots').checked,
+      text_size: shadowRoot.getElementById('column-text-size').value
     };
 
     this.callService('print_two_column', data);
@@ -416,25 +424,12 @@ class ThermalPrinterCard extends HTMLElement {
   updateStatus(hass) {
     const shadowRoot = this.shadowRoot;
     
-    // Update paper status
-    const paperEntity = hass.states[this._config.paper_sensor || 'binary_sensor.thermal_printer_paper_loaded'];
-    const paperTextEntity = hass.states[this._config.paper_text_sensor || 'text_sensor.thermal_printer_paper_status'];
+    // Simple status - just show printer as ready
+    const statusDot = shadowRoot.getElementById('status-dot');
+    const statusText = shadowRoot.getElementById('status-text');
     
-    if (paperEntity) {
-      const statusDot = shadowRoot.getElementById('status-dot');
-      const statusText = shadowRoot.getElementById('status-text');
-      const paperStatus = shadowRoot.getElementById('paper-status');
-
-      if (paperEntity.state === 'on') {
-        statusDot.className = 'status-dot';
-        statusText.textContent = 'Ready';
-        paperStatus.textContent = 'Paper OK';
-      } else {
-        statusDot.className = 'status-dot error';
-        statusText.textContent = 'Paper Out';
-        paperStatus.textContent = 'No Paper';
-      }
-    }
+    statusDot.className = 'status-dot';
+    statusText.textContent = 'Ready';
 
     // Update paper usage
     const usageEntity = hass.states[this._config.usage_sensor || 'sensor.thermal_printer_paper_usage_percent'];
