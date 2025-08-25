@@ -16,7 +16,23 @@ class ThermalPrinterCard extends HTMLElement {
     if (!text.trim()) {
       this.showError('Please enter banner text');
       return;
+    printLabel() {
+    const shadowRoot = this.shadowRoot;
+    const text = shadowRoot.getElementById('label-input').value;
+    if (!text.trim()) {
+      this.showError('Please enter label text');
+      return;
     }
+
+    const labelSize = shadowRoot.getElementById('label-size').value;
+    const labelSpacing = parseInt(shadowRoot.getElementById('label-spacing').value);
+    
+    this.callServiceWithLoading('print_label_text', 'print-label', {
+      message: text,
+      size: labelSize,
+      spacing: labelSpacing
+    });
+  }
 
     const bannerSize = shadowRoot.getElementById('banner-size').value;
     const bannerSpacing = parseInt(shadowRoot.getElementById('banner-spacing').value);
@@ -434,7 +450,35 @@ class ThermalPrinterCard extends HTMLElement {
         <div class="collapsible" id="banner-toggle">
           <span class="section-header">🎪 Banner Text (Rotated Letters)</span>
           <span>▼</span>
+        <div class="text-input-section">
+        <div class="collapsible" id="label-toggle">
+          <span class="section-header">🏷️ Label Printing (Like Label Printer!)</span>
+          <span>▼</span>
         </div>
+        <div class="collapsible-content" id="label-content">
+          <textarea class="text-input" id="label-input" placeholder="Enter label text..."></textarea>
+          <div class="format-controls">
+            <select class="format-select" id="label-size">
+              <option value="S">Small Label</option>
+              <option value="M" selected>Medium Label</option>
+              <option value="L">Large Label</option>
+              <option value="XL">Extra Large Label</option>
+            </select>
+            <select class="format-select" id="label-spacing">
+              <option value="1" selected>Normal Spacing</option>
+              <option value="2">Loose Spacing</option>
+              <option value="3">Extra Loose</option>
+            </select>
+          </div>
+          <button class="control-button success" id="print-label">🏷️ Print Label</button>
+          <div style="font-size: 12px; color: var(--secondary-text-color); margin-top: 8px;">
+            💡 Prints rotated characters vertically down the roll - perfect for labels that read sideways!
+          </div>
+          <div style="font-size: 11px; color: var(--secondary-text-color); margin-top: 4px;">
+            📐 Text will be readable when you hold the printed roll with the side as top/bottom
+          </div>
+        </div>
+      </div>
         <div class="collapsible-content" id="banner-content">
           <textarea class="text-input" id="banner-input" placeholder="Enter banner text (keep it short!)..."></textarea>
           <div class="format-controls">
@@ -665,7 +709,8 @@ class ThermalPrinterCard extends HTMLElement {
     shadowRoot.getElementById('fill-dots').onchange = () => this.updateColumnPreview();
     shadowRoot.getElementById('column-text-size').onchange = () => this.updateColumnPreview();
 
-    // Banner printing
+    // Label printing
+    shadowRoot.getElementById('print-label').onclick = () => this.printLabel();
     shadowRoot.getElementById('print-banner-dedicated').onclick = () => this.printDedicatedBanner();
     shadowRoot.getElementById('print-barcode').onclick = () => this.printBarcode();
     shadowRoot.getElementById('barcode-data').oninput = () => this.validateBarcode();
@@ -683,7 +728,7 @@ class ThermalPrinterCard extends HTMLElement {
 
   setupCollapsibles() {
     const shadowRoot = this.shadowRoot;
-    const collapsibles = ['text-toggle', 'column-toggle', 'barcode-toggle', 'qr-toggle', 'banner-toggle'];
+    const collapsibles = ['text-toggle', 'column-toggle', 'barcode-toggle', 'qr-toggle', 'banner-toggle', 'label-toggle'];
 
     collapsibles.forEach(id => {
       const toggle = shadowRoot.getElementById(id);
