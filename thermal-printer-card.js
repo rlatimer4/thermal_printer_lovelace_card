@@ -10,109 +10,135 @@ class ThermalPrinterCard extends HTMLElement {
     }
 
     const root = this.shadowRoot;
-    if (root.lastChild) root.removeChild(root.lastChild);
+    root.innerHTML = '';
 
     const card = document.createElement('ha-card');
-    card.header = config.title || 'Thermal Printer';
+    card.setAttribute('header', config.title || 'Thermal Printer');
     
     const content = document.createElement('div');
-    content.className = 'card-content';
+    content.style.padding = '16px';
 
-    const style = document.createElement('style');
-    style.textContent = `
-      .control-button {
-        padding: 10px 20px;
-        margin: 8px;
-        border: none;
-        border-radius: 8px;
-        background: var(--primary-color);
-        color: var(--text-primary-color);
-        cursor: pointer;
-        font-size: 14px;
-      }
-      .control-button:hover {
-        filter: brightness(1.1);
-      }
-      .text-input {
-        width: 100%;
-        padding: 8px;
-        margin: 8px 0;
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        box-sizing: border-box;
-      }
-      .status-info {
-        padding: 12px;
-        margin: 8px 0;
-        background: var(--secondary-background-color);
-        border-radius: 8px;
-        font-size: 14px;
-      }
-      .section {
-        margin: 16px 0;
-      }
-      .section h3 {
-        margin: 8px 0;
-        color: var(--primary-text-color);
-      }
-    `;
+    const statusDiv = document.createElement('div');
+    statusDiv.innerHTML = '<strong>Status:</strong> <span id="status">Ready</span>';
+    statusDiv.style.marginBottom = '16px';
+    statusDiv.style.padding = '8px';
+    statusDiv.style.backgroundColor = 'var(--secondary-background-color)';
+    statusDiv.style.borderRadius = '4px';
 
-    const contentDiv = document.createElement('div');
-    contentDiv.innerHTML = `
-      <div class="status-info">
-        <strong>Printer Status:</strong> <span id="printer-status">Ready</span>
-      </div>
+    const testBtn = document.createElement('button');
+    testBtn.innerHTML = 'Test Print';
+    testBtn.style.margin = '4px';
+    testBtn.style.padding = '8px 16px';
+    testBtn.style.border = 'none';
+    testBtn.style.borderRadius = '4px';
+    testBtn.style.backgroundColor = 'var(--primary-color)';
+    testBtn.style.color = 'var(--text-primary-color)';
+    testBtn.style.cursor = 'pointer';
 
-      <div class="section">
-        <h3>Basic Controls</h3>
-        <button class="control-button" id="test-print">Test Print</button>
-        <button class="control-button" id="wake-printer">Wake</button>
-        <button class="control-button" id="sleep-printer">Sleep</button>
-      </div>
+    const wakeBtn = document.createElement('button');
+    wakeBtn.innerHTML = 'Wake';
+    wakeBtn.style.margin = '4px';
+    wakeBtn.style.padding = '8px 16px';
+    wakeBtn.style.border = 'none';
+    wakeBtn.style.borderRadius = '4px';
+    wakeBtn.style.backgroundColor = 'var(--primary-color)';
+    wakeBtn.style.color = 'var(--text-primary-color)';
+    wakeBtn.style.cursor = 'pointer';
 
-      <div class="section">
-        <h3>Text Printing</h3>
-        <input type="text" class="text-input" id="text-input" placeholder="Enter text to print">
-        <button class="control-button" id="print-text">Print Text</button>
-      </div>
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    textInput.placeholder = 'Enter text to print';
+    textInput.style.width = '100%';
+    textInput.style.padding = '8px';
+    textInput.style.margin = '8px 0';
+    textInput.style.border = '1px solid var(--divider-color)';
+    textInput.style.borderRadius = '4px';
+    textInput.style.boxSizing = 'border-box';
 
-      <div class="section">
-        <h3>Label Printing (NEW)</h3>
-        <input type="text" class="text-input" id="label-input" placeholder="Enter label text">
-        <select id="label-size" style="margin: 8px; padding: 6px;">
-          <option value="S">Small</option>
-          <option value="M" selected>Medium</option>
-          <option value="L">Large</option>
-          <option value="XL">Extra Large</option>
-        </select>
-        <button class="control-button" id="print-label">🏷️ Print Label</button>
-      </div>
+    const printBtn = document.createElement('button');
+    printBtn.innerHTML = 'Print Text';
+    printBtn.style.margin = '4px';
+    printBtn.style.padding = '8px 16px';
+    printBtn.style.border = 'none';
+    printBtn.style.borderRadius = '4px';
+    printBtn.style.backgroundColor = 'var(--primary-color)';
+    printBtn.style.color = 'var(--text-primary-color)';
+    printBtn.style.cursor = 'pointer';
 
-      <div class="status-info">
-        💡 Label printing combines rotation + vertical layout for perfect label-maker style output!
-      </div>
-    `;
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.placeholder = 'Enter label text';
+    labelInput.style.width = '100%';
+    labelInput.style.padding = '8px';
+    labelInput.style.margin = '16px 0 8px 0';
+    labelInput.style.border = '1px solid var(--divider-color)';
+    labelInput.style.borderRadius = '4px';
+    labelInput.style.boxSizing = 'border-box';
 
-    content.appendChild(style);
-    content.appendChild(contentDiv);
+    const sizeSelect = document.createElement('select');
+    sizeSelect.style.margin = '4px';
+    sizeSelect.style.padding = '6px';
+    const sizes = ['S', 'M', 'L', 'XL'];
+    const sizeLabels = ['Small', 'Medium', 'Large', 'Extra Large'];
+    for (let i = 0; i < sizes.length; i++) {
+      const option = document.createElement('option');
+      option.value = sizes[i];
+      option.innerHTML = sizeLabels[i];
+      if (sizes[i] === 'M') option.selected = true;
+      sizeSelect.appendChild(option);
+    }
+
+    const labelBtn = document.createElement('button');
+    labelBtn.innerHTML = '🏷️ Print Label';
+    labelBtn.style.margin = '4px';
+    labelBtn.style.padding = '8px 16px';
+    labelBtn.style.border = 'none';
+    labelBtn.style.borderRadius = '4px';
+    labelBtn.style.backgroundColor = 'var(--primary-color)';
+    labelBtn.style.color = 'var(--text-primary-color)';
+    labelBtn.style.cursor = 'pointer';
+
+    const infoDiv = document.createElement('div');
+    infoDiv.innerHTML = '💡 Label printing combines rotation + vertical layout!';
+    infoDiv.style.marginTop = '16px';
+    infoDiv.style.padding = '8px';
+    infoDiv.style.backgroundColor = 'var(--secondary-background-color)';
+    infoDiv.style.borderRadius = '4px';
+    infoDiv.style.fontSize = '14px';
+
+    content.appendChild(statusDiv);
+    content.appendChild(document.createElement('br'));
+    content.appendChild(testBtn);
+    content.appendChild(wakeBtn);
+    content.appendChild(document.createElement('br'));
+    content.appendChild(document.createElement('br'));
+    content.appendChild(textInput);
+    content.appendChild(printBtn);
+    content.appendChild(document.createElement('br'));
+    content.appendChild(labelInput);
+    content.appendChild(sizeSelect);
+    content.appendChild(labelBtn);
+    content.appendChild(infoDiv);
+
     card.appendChild(content);
     root.appendChild(card);
 
     this._config = config;
-    this.setupEventListeners();
-  }
 
-  setupEventListeners() {
-    const root = this.shadowRoot;
+    const self = this;
 
-    root.getElementById('test-print').onclick = () => this.callService('test_print');
-    root.getElementById('wake-printer').onclick = () => this.callService('wake_printer');
-    root.getElementById('sleep-printer').onclick = () => this.callService('sleep_printer');
+    testBtn.addEventListener('click', function() {
+      self.callService('test_print');
+    });
 
-    root.getElementById('print-text').onclick = () => {
-      const text = root.getElementById('text-input').value;
+    wakeBtn.addEventListener('click', function() {
+      self.callService('wake_printer');
+    });
+
+    printBtn.addEventListener('click', function() {
+      const text = textInput.value;
       if (text.trim()) {
-        this.callService('print_text', {
+        self.callService('print_text', {
           message: text,
           text_size: 'M',
           alignment: 'L',
@@ -124,13 +150,13 @@ class ThermalPrinterCard extends HTMLElement {
       } else {
         alert('Please enter some text');
       }
-    };
+    });
 
-    root.getElementById('print-label').onclick = () => {
-      const text = root.getElementById('label-input').value;
-      const size = root.getElementById('label-size').value;
+    labelBtn.addEventListener('click', function() {
+      const text = labelInput.value;
+      const size = sizeSelect.value;
       if (text.trim()) {
-        this.callService('print_label_text', {
+        self.callService('print_label_text', {
           message: text,
           size: size,
           spacing: 1
@@ -138,10 +164,12 @@ class ThermalPrinterCard extends HTMLElement {
       } else {
         alert('Please enter label text');
       }
-    };
+    });
   }
 
-  callService(service, data = {}) {
+  callService(service, data) {
+    if (!data) data = {};
+    
     try {
       const entityParts = this._config.entity.split('.');
       let deviceName = entityParts[1];
@@ -156,37 +184,36 @@ class ThermalPrinterCard extends HTMLElement {
       
     } catch (error) {
       console.error('Service call failed:', error);
-      alert('Service call failed: ' + error.message);
     }
   }
 
   set hass(hass) {
     this._hass = hass;
     
-    const statusSpan = this.shadowRoot.getElementById('printer-status');
-    if (statusSpan) {
+    const statusSpan = this.shadowRoot.getElementById('status');
+    if (statusSpan && this._config && this._config.entity) {
       const entity = hass.states[this._config.entity];
-      
       if (entity) {
-        statusSpan.textContent = entity.state === 'on' ? 'Online' : 'Offline';
-      } else {
-        statusSpan.textContent = 'Unknown';
+        statusSpan.innerHTML = entity.state === 'on' ? 'Online' : 'Offline';
       }
     }
   }
 
   getCardSize() {
-    return 4;
+    return 3;
   }
 }
 
 customElements.define('thermal-printer-card', ThermalPrinterCard);
 
-window.customCards = window.customCards || [];
+if (!window.customCards) {
+  window.customCards = [];
+}
+
 window.customCards.push({
   type: 'thermal-printer-card',
   name: 'Thermal Printer Card',
-  description: 'Simple thermal printer control card'
+  description: 'Basic thermal printer control'
 });
 
-console.log('Thermal Printer Card: Script loaded successfully');
+console.log('Thermal Printer Card loaded successfully!');
