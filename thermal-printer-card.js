@@ -4,6 +4,44 @@ class ThermalPrinterCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.previewLines = [];
     this.previewWidth = 32; // Default character width
+  printBanner() {
+    const shadowRoot = this.shadowRoot;
+    const text = shadowRoot.getElementById('text-input').value;
+    if (!text.trim()) {
+      this.showError('Please enter some text for banner');
+      return;
+    printDedicatedBanner() {
+    const shadowRoot = this.shadowRoot;
+    const text = shadowRoot.getElementById('banner-input').value;
+    if (!text.trim()) {
+      this.showError('Please enter banner text');
+      return;
+    }
+
+    const bannerSize = shadowRoot.getElementById('banner-size').value;
+    const bannerSpacing = parseInt(shadowRoot.getElementById('banner-spacing').value);
+    
+    this.callServiceWithLoading('print_banner_text', 'print-banner-dedicated', {
+      message: text,
+      size: bannerSize,
+      spacing: bannerSpacing
+    });
+  }
+
+    // Use banner text service with maximum impact settings
+    const textSize = shadowRoot.getElementById('text-size').value;
+    
+    // Map card sizes to banner sizes
+    let bannerSize = 'L';  // Default large
+    if (textSize === 'S') bannerSize = 'M';
+    else if (textSize === 'M') bannerSize = 'L'; 
+    else if (textSize === 'L') bannerSize = 'XL';  // Maximum impact!
+    
+    this.callServiceWithLoading('print_banner_text', 'print-banner', {
+      message: text,
+      size: bannerSize,
+      spacing: 2  // Good default spacing
+    });
   }
 
   setConfig(config) {
@@ -392,7 +430,32 @@ class ThermalPrinterCard extends HTMLElement {
         <div class="status-indicator">
           <div class="status-dot" id="status-dot"></div>
           <span id="status-text">Printer Ready</span>
+        <div class="text-input-section">
+        <div class="collapsible" id="banner-toggle">
+          <span class="section-header">🎪 Banner Text (Rotated Letters)</span>
+          <span>▼</span>
         </div>
+        <div class="collapsible-content" id="banner-content">
+          <textarea class="text-input" id="banner-input" placeholder="Enter banner text (keep it short!)..."></textarea>
+          <div class="format-controls">
+            <select class="format-select" id="banner-size">
+              <option value="M">Medium Banner</option>
+              <option value="L" selected>Large Banner</option>
+              <option value="XL">Maximum Impact!</option>
+            </select>
+            <select class="format-select" id="banner-spacing">
+              <option value="1">Tight Spacing</option>
+              <option value="2" selected>Normal Spacing</option>
+              <option value="3">Loose Spacing</option>
+              <option value="4">Extra Loose</option>
+            </select>
+          </div>
+          <button class="control-button success" id="print-banner-dedicated">🎯 Print Banner</button>
+          <div style="font-size: 12px; color: var(--secondary-text-color); margin-top: 8px;">
+            💡 Banner prints each letter rotated 90° and vertically down the paper for maximum impact!
+          </div>
+        </div>
+      </div>
         <div>
           <button class="control-button secondary" id="refresh-status" style="padding: 6px 12px; min-width: auto;">
             🔄 Refresh
@@ -469,7 +532,10 @@ class ThermalPrinterCard extends HTMLElement {
             <label class="format-checkbox"><input type="checkbox" id="text-inverse"> ⬛ Inverse</label>
             <label class="format-checkbox"><input type="checkbox" id="text-rotate"> 🔄 90° Rotate</label>
           </div>
-          <button class="control-button" id="print-text">🖨️ Print Text</button>
+          <div class="control-row">
+            <button class="control-button" id="print-text">🖨️ Print Text</button>
+            <button class="control-button secondary" id="print-banner">🎪 Print Banner</button>
+          </div>
           <div class="rotation-preview" id="rotation-preview" style="display: none;">
             <div class="section-header">90° Rotation Preview:</div>
             <div class="rotated-text" id="rotated-preview"></div>
@@ -579,6 +645,7 @@ class ThermalPrinterCard extends HTMLElement {
 
     // Text printing
     shadowRoot.getElementById('print-text').onclick = () => this.printText();
+    shadowRoot.getElementById('print-banner').onclick = () => this.printBanner();
     shadowRoot.getElementById('text-input').oninput = () => this.updatePreview();
     shadowRoot.getElementById('text-size').onchange = () => this.updatePreview();
     shadowRoot.getElementById('text-justify').onchange = () => this.updatePreview();
@@ -598,7 +665,8 @@ class ThermalPrinterCard extends HTMLElement {
     shadowRoot.getElementById('fill-dots').onchange = () => this.updateColumnPreview();
     shadowRoot.getElementById('column-text-size').onchange = () => this.updateColumnPreview();
 
-    // Barcode printing
+    // Banner printing
+    shadowRoot.getElementById('print-banner-dedicated').onclick = () => this.printDedicatedBanner();
     shadowRoot.getElementById('print-barcode').onclick = () => this.printBarcode();
     shadowRoot.getElementById('barcode-data').oninput = () => this.validateBarcode();
     shadowRoot.getElementById('barcode-type').onchange = () => this.validateBarcode();
@@ -615,7 +683,7 @@ class ThermalPrinterCard extends HTMLElement {
 
   setupCollapsibles() {
     const shadowRoot = this.shadowRoot;
-    const collapsibles = ['text-toggle', 'column-toggle', 'barcode-toggle', 'qr-toggle'];
+    const collapsibles = ['text-toggle', 'column-toggle', 'barcode-toggle', 'qr-toggle', 'banner-toggle'];
 
     collapsibles.forEach(id => {
       const toggle = shadowRoot.getElementById(id);
