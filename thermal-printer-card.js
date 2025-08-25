@@ -257,7 +257,103 @@ class ThermalPrinterCard extends HTMLElement {
 
     textContent.appendChild(textInput);
     textContent.appendChild(formatControls);
-    textContent.appendChild(printTextBtn);
+    // Character limit tracking
+    this.updateCharacterLimits = function() {
+      const size = sizeSelect.value;
+      const bold = boldCheck.checked;
+      const underline = underlineCheck.checked;
+      const rotate = rotateCheck.checked;
+      
+      let maxChars = 32; // Default for small
+      if (size === 'M') maxChars = 24;
+      else if (size === 'L') maxChars = 16;
+      
+      // Modifiers reduce available space
+      if (bold) maxChars = Math.floor(maxChars * 0.8);
+      if (underline) maxChars = Math.floor(maxChars * 0.9);
+      if (rotate) maxChars = Math.floor(maxChars * 0.7); // Rotation takes more space
+      
+      // Update placeholder and validation
+      const currentLength = textInput.value.length;
+      const remaining = Math.max(0, maxChars - currentLength);
+      
+      textInput.placeholder = `Enter text to print... (${remaining}/${maxChars} chars remaining)`;
+      
+      if (currentLength > maxChars) {
+        textInput.style.borderColor = 'var(--error-color)';
+        textInput.style.background = 'rgba(var(--rgb-error-color), 0.1)';
+      } else if (currentLength > maxChars * 0.8) {
+        textInput.style.borderColor = 'var(--warning-color)';
+        textInput.style.background = 'rgba(var(--rgb-warning-color), 0.1)';
+      } else {
+        textInput.style.borderColor = 'var(--divider-color)';
+        textInput.style.background = 'var(--card-background-color)';
+      }
+      
+      return maxChars;
+    };
+    
+    // Add character limiting to text input
+    textInput.addEventListener('input', function() {
+      const maxChars = self.updateCharacterLimits();
+      const lines = this.value.split('\n');
+      let truncated = false;
+      
+      // Limit each line and total length
+      const processedLines = lines.map(line => {
+        if (line.length > maxChars) {
+          truncated = true;
+          return line.substring(0, maxChars);
+        }
+        return line;
+      });
+      
+      if (truncated) {
+        const cursorPos = this.selectionStart;
+        this.value = processedLines.join('\n');
+        this.setSelectionRange(cursorPos - 1, cursorPos - 1);
+      }
+    });
+
+    // Update limits when settings change
+    sizeSelect.addEventListener('change', this.updateCharacterLimits);
+    boldCheck.addEventListener('change', this.updateCharacterLimits);
+    underlineCheck.addEventListener('change', this.updateCharacterLimits);
+    rotateCheck.addEventListener('change', this.updateCharacterLimits);
+    
+    // Initialize character limits
+    this.updateCharacterLimits();
+
+    // Add column length limiting
+    const updateTwoColumnLimits = function() {
+      const size = twoColSizeSelect.value;
+      let totalChars = 32;
+      if (size === 'M') totalChars = 24;
+      else if (size === 'L') totalChars = 16;
+      
+      const leftMax = Math.floor(totalChars * 0.6);
+      const rightMax = totalChars - leftMax - 1;
+      
+      leftColInput.setAttribute('maxlength', leftMax);
+      rightColInput.setAttribute('maxlength', rightMax);
+      leftColInput.placeholder = `Left column (max ${leftMax})`;
+      rightColInput.placeholder = `Right column (max ${rightMax})`;
+    };
+    
+    twoColSizeSelect.addEventListener('change', updateTwoColumnLimits);
+    updateTwoColumnLimits();
+
+    // Add three column limiting
+    const updateThreeColumnLimits = function() {
+      const maxPerCol = 10; // Fixed for 3-column table
+      col1Input.setAttribute('maxlength', maxPerCol);
+      col2Input.setAttribute('maxlength', maxPerCol);
+      col3Input.setAttribute('maxlength', maxPerCol);
+      col1Input.placeholder = `Col 1 (${maxPerCol} max)`;
+      col2Input.placeholder = `Col 2 (${maxPerCol} max)`;
+      col3Input.placeholder = `Col 3 (${maxPerCol} max)`;
+    };
+    updateThreeColumnLimits();
 
     // Label Printing Section
     const labelSection = this.createCollapsibleSection('🏷️ Label Printing (Rotated + Vertical)');
@@ -417,7 +513,300 @@ class ThermalPrinterCard extends HTMLElement {
     qrContent.appendChild(qrInput);
     qrContent.appendChild(qrLabelInput);
     qrContent.appendChild(qrControls);
-    qrContent.appendChild(printQrBtn);
+    // Two-Column Printing Section
+    const twoColSection = this.createCollapsibleSection('📊 Two-Column Printing');
+    const twoColContent = twoColSection.content;
+
+    const twoColContainer = document.createElement('div');
+    twoColContainer.style.display = 'grid';
+    twoColContainer.style.gridTemplateColumns = '1fr 1fr';
+    twoColContainer.style.gap = '12px';
+    twoColContainer.style.margin = '12px 0';
+
+    const leftColInput = document.createElement('input');
+    leftColInput.type = 'text';
+    leftColInput.placeholder = 'Left column text';
+    leftColInput.style.width = '100%';
+    leftColInput.style.padding = '10px';
+    leftColInput.style.border = '1px solid var(--divider-color)';
+    leftColInput.style.borderRadius = '6px';
+    leftColInput.style.fontFamily = 'Courier New, monospace';
+    leftColInput.style.boxSizing = 'border-box';
+
+    const rightColInput = document.createElement('input');
+    rightColInput.type = 'text';
+    rightColInput.placeholder = 'Right column text';
+    rightColInput.style.width = '100%';
+    rightColInput.style.padding = '10px';
+    rightColInput.style.border = '1px solid var(--divider-color)';
+    rightColInput.style.borderRadius = '6px';
+    rightColInput.style.fontFamily = 'Courier New, monospace';
+    rightColInput.style.boxSizing = 'border-box';
+
+    twoColContainer.appendChild(leftColInput);
+    twoColContainer.appendChild(rightColInput);
+
+    const twoColControls = document.createElement('div');
+    twoColControls.style.display = 'grid';
+    twoColControls.style.gridTemplateColumns = '1fr 1fr';
+    twoColControls.style.gap = '8px';
+    twoColControls.style.margin = '8px 0';
+
+    const twoColSizeSelect = document.createElement('select');
+    twoColSizeSelect.style.padding = '8px';
+    twoColSizeSelect.style.border = '1px solid var(--divider-color)';
+    twoColSizeSelect.style.borderRadius = '6px';
+    this.addOptions(twoColSizeSelect, [
+      { value: 'S', text: 'Small (32 chars)', selected: true },
+      { value: 'M', text: 'Medium (24 chars)' },
+      { value: 'L', text: 'Large (16 chars)' }
+    ]);
+
+    const fillDotsCheck = this.createCheckbox('Fill with dots');
+    fillDotsCheck.checked = true; // Default to true for receipts
+
+    twoColControls.appendChild(twoColSizeSelect);
+    twoColControls.appendChild(fillDotsCheck);
+
+    const printTwoColBtn = document.createElement('button');
+    printTwoColBtn.innerHTML = '📊 Print Two Columns';
+    this.styleButton(printTwoColBtn);
+
+    printTwoColBtn.addEventListener('click', function() {
+      const leftText = leftColInput.value;
+      const rightText = rightColInput.value;
+      
+      if (!leftText.trim() && !rightText.trim()) {
+        alert('Please enter text for at least one column');
+        return;
+      }
+      
+      self.callService('print_two_column', {
+        left_text: leftText,
+        right_text: rightText,
+        fill_dots: fillDotsCheck.checked,
+        text_size: twoColSizeSelect.value
+      });
+    });
+
+    const twoColExample = document.createElement('div');
+    twoColExample.innerHTML = '💡 Perfect for receipts: "Coffee..................$3.50"';
+    twoColExample.style.fontSize = '12px';
+    twoColExample.style.color = 'var(--secondary-text-color)';
+    twoColExample.style.margin = '8px 0';
+    twoColExample.style.padding = '8px';
+    twoColExample.style.background = 'var(--secondary-background-color)';
+    twoColExample.style.borderRadius = '4px';
+    twoColExample.style.fontFamily = 'monospace';
+
+    twoColContent.appendChild(twoColContainer);
+    twoColContent.appendChild(twoColControls);
+    twoColContent.appendChild(printTwoColBtn);
+    twoColContent.appendChild(twoColExample);
+
+    // Three-Column Printing Section
+    const threeColSection = this.createCollapsibleSection('📋 Three-Column Table');
+    const threeColContent = threeColSection.content;
+
+    const threeColContainer = document.createElement('div');
+    threeColContainer.style.display = 'grid';
+    threeColContainer.style.gridTemplateColumns = '1fr 1fr 1fr';
+    threeColContainer.style.gap = '8px';
+    threeColContainer.style.margin = '12px 0';
+
+    const col1Input = document.createElement('input');
+    col1Input.type = 'text';
+    col1Input.placeholder = 'Column 1';
+    col1Input.style.width = '100%';
+    col1Input.style.padding = '8px';
+    col1Input.style.border = '1px solid var(--divider-color)';
+    col1Input.style.borderRadius = '6px';
+    col1Input.style.fontFamily = 'Courier New, monospace';
+    col1Input.style.fontSize = '12px';
+    col1Input.style.boxSizing = 'border-box';
+
+    const col2Input = document.createElement('input');
+    col2Input.type = 'text';
+    col2Input.placeholder = 'Column 2';
+    col2Input.style.width = '100%';
+    col2Input.style.padding = '8px';
+    col2Input.style.border = '1px solid var(--divider-color)';
+    col2Input.style.borderRadius = '6px';
+    col2Input.style.fontFamily = 'Courier New, monospace';
+    col2Input.style.fontSize = '12px';
+    col2Input.style.boxSizing = 'border-box';
+
+    const col3Input = document.createElement('input');
+    col3Input.type = 'text';
+    col3Input.placeholder = 'Column 3';
+    col3Input.style.width = '100%';
+    col3Input.style.padding = '8px';
+    col3Input.style.border = '1px solid var(--divider-color)';
+    col3Input.style.borderRadius = '6px';
+    col3Input.style.fontFamily = 'Courier New, monospace';
+    col3Input.style.fontSize = '12px';
+    col3Input.style.boxSizing = 'border-box';
+
+    threeColContainer.appendChild(col1Input);
+    threeColContainer.appendChild(col2Input);
+    threeColContainer.appendChild(col3Input);
+
+    const headerCheck = this.createCheckbox('Format as header row');
+    headerCheck.style.margin = '8px 0';
+
+    const printThreeColBtn = document.createElement('button');
+    printThreeColBtn.innerHTML = '📋 Print Table Row';
+    this.styleButton(printThreeColBtn);
+
+    printThreeColBtn.addEventListener('click', function() {
+      const col1 = col1Input.value;
+      const col2 = col2Input.value;
+      const col3 = col3Input.value;
+      
+      if (!col1.trim() && !col2.trim() && !col3.trim()) {
+        alert('Please enter text for at least one column');
+        return;
+      }
+      
+      self.callService('print_table_row', {
+        col1: col1,
+        col2: col2,
+        col3: col3,
+        header: headerCheck.checked
+      });
+    });
+
+    const threeColExample = document.createElement('div');
+    threeColExample.innerHTML = '💡 Perfect for tables: "Item      Qty       Price"';
+    threeColExample.style.fontSize = '12px';
+    threeColExample.style.color = 'var(--secondary-text-color)';
+    threeColExample.style.margin = '8px 0';
+    threeColExample.style.padding = '8px';
+    threeColExample.style.background = 'var(--secondary-background-color)';
+    threeColExample.style.borderRadius = '4px';
+    threeColExample.style.fontFamily = 'monospace';
+
+    threeColContent.appendChild(threeColContainer);
+    threeColContent.appendChild(headerCheck);
+    threeColContent.appendChild(printThreeColBtn);
+    threeColContent.appendChild(threeColExample);
+
+    // Barcode Printing Section
+    const barcodeSection = this.createCollapsibleSection('📱 Barcode Printing');
+    const barcodeContent = barcodeSection.content;
+
+    const barcodeTypeSelect = document.createElement('select');
+    barcodeTypeSelect.style.width = '100%';
+    barcodeTypeSelect.style.margin = '8px 0';
+    barcodeTypeSelect.style.padding = '8px';
+    barcodeTypeSelect.style.border = '1px solid var(--divider-color)';
+    barcodeTypeSelect.style.borderRadius = '6px';
+    this.addOptions(barcodeTypeSelect, [
+      { value: '0', text: 'UPC-A (12 digits)' },
+      { value: '1', text: 'UPC-E (6-8 digits)' },
+      { value: '2', text: 'EAN13 (12-13 digits)' },
+      { value: '3', text: 'EAN8 (7-8 digits)' },
+      { value: '4', text: 'CODE39 (alphanumeric)' },
+      { value: '5', text: 'ITF (even digits)' },
+      { value: '6', text: 'CODABAR (numeric + special)' },
+      { value: '7', text: 'CODE93 (alphanumeric)' },
+      { value: '8', text: 'CODE128 (full ASCII)', selected: true }
+    ]);
+
+    const barcodeInput = document.createElement('input');
+    barcodeInput.type = 'text';
+    barcodeInput.placeholder = 'Barcode data';
+    barcodeInput.style.width = '100%';
+    barcodeInput.style.padding = '10px';
+    barcodeInput.style.margin = '8px 0';
+    barcodeInput.style.border = '1px solid var(--divider-color)';
+    barcodeInput.style.borderRadius = '6px';
+    barcodeInput.style.fontFamily = 'monospace';
+    barcodeInput.style.boxSizing = 'border-box';
+
+    const barcodeError = document.createElement('div');
+    barcodeError.style.display = 'none';
+    barcodeError.style.background = 'var(--error-color)';
+    barcodeError.style.color = 'white';
+    barcodeError.style.padding = '8px';
+    barcodeError.style.borderRadius = '4px';
+    barcodeError.style.margin = '8px 0';
+    barcodeError.style.fontSize = '12px';
+
+    const printBarcodeBtn = document.createElement('button');
+    printBarcodeBtn.innerHTML = '📱 Print Barcode';
+    this.styleButton(printBarcodeBtn);
+
+    // Barcode validation function
+    function validateBarcode() {
+      const type = parseInt(barcodeTypeSelect.value);
+      const data = barcodeInput.value;
+      let error = null;
+
+      if (!data.trim()) {
+        barcodeError.style.display = 'none';
+        return true;
+      }
+
+      switch (type) {
+        case 0: // UPC-A
+          if (!/^\d{11,12}$/.test(data)) error = 'UPC-A requires 11-12 digits';
+          break;
+        case 1: // UPC-E
+          if (!/^\d{6,8}$/.test(data)) error = 'UPC-E requires 6-8 digits';
+          break;
+        case 2: // EAN13
+          if (!/^\d{12,13}$/.test(data)) error = 'EAN13 requires 12-13 digits';
+          break;
+        case 3: // EAN8
+          if (!/^\d{7,8}$/.test(data)) error = 'EAN8 requires 7-8 digits';
+          break;
+        case 4: // CODE39
+          if (!/^[0-9A-Z\-\.\s\$\/\+\%]+$/.test(data)) error = 'CODE39: Invalid characters';
+          break;
+        case 5: // ITF
+          if (!/^\d+$/.test(data) || data.length % 2 !== 0) error = 'ITF requires even number of digits';
+          break;
+        case 8: // CODE128
+          if (data.length < 2 || data.length > 255) error = 'CODE128: 2-255 characters required';
+          break;
+      }
+
+      if (error) {
+        barcodeError.innerHTML = error;
+        barcodeError.style.display = 'block';
+        return false;
+      } else {
+        barcodeError.style.display = 'none';
+        return true;
+      }
+    }
+
+    barcodeInput.addEventListener('input', validateBarcode);
+    barcodeTypeSelect.addEventListener('change', validateBarcode);
+
+    printBarcodeBtn.addEventListener('click', function() {
+      const data = barcodeInput.value;
+      if (!data.trim()) {
+        alert('Please enter barcode data');
+        return;
+      }
+
+      if (!validateBarcode()) {
+        alert('Please fix barcode validation errors');
+        return;
+      }
+      
+      self.callService('print_barcode', {
+        barcode_type: parseInt(barcodeTypeSelect.value),
+        barcode_data: data
+      });
+    });
+
+    barcodeContent.appendChild(barcodeTypeSelect);
+    barcodeContent.appendChild(barcodeInput);
+    barcodeContent.appendChild(barcodeError);
+    barcodeContent.appendChild(printBarcodeBtn);
 
     // Assembly
     content.appendChild(statusDiv);
@@ -426,7 +815,10 @@ class ThermalPrinterCard extends HTMLElement {
     content.appendChild(actionsRow1);
     content.appendChild(actionsRow2);
     content.appendChild(textSection.section);
+    content.appendChild(twoColSection.section);
+    content.appendChild(threeColSection.section);
     content.appendChild(labelSection.section);
+    content.appendChild(barcodeSection.section);
     content.appendChild(qrSection.section);
 
     card.appendChild(content);
@@ -434,12 +826,21 @@ class ThermalPrinterCard extends HTMLElement {
 
     this._config = config;
 
-    // Event listeners for collapsible sections
+    // Event listeners for all collapsible sections
     textSection.toggle.addEventListener('click', function() {
       self.toggleSection(textSection);
     });
+    twoColSection.toggle.addEventListener('click', function() {
+      self.toggleSection(twoColSection);
+    });
+    threeColSection.toggle.addEventListener('click', function() {
+      self.toggleSection(threeColSection);
+    });
     labelSection.toggle.addEventListener('click', function() {
       self.toggleSection(labelSection);
+    });
+    barcodeSection.toggle.addEventListener('click', function() {
+      self.toggleSection(barcodeSection);
     });
     qrSection.toggle.addEventListener('click', function() {
       self.toggleSection(qrSection);
