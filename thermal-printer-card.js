@@ -585,7 +585,11 @@ class ThermalPrinterCard extends HTMLElement {
     shadowRoot.getElementById('text-bold').onchange = () => this.updatePreview();
     shadowRoot.getElementById('text-underline').onchange = () => this.updatePreview();
     shadowRoot.getElementById('text-inverse').onchange = () => this.updatePreview();
-    shadowRoot.getElementById('text-rotate').onchange = () => this.toggleRotationPreview();
+    shadowRoot.getElementById('text-rotate').onchange = () => {
+      this.toggleRotationPreview();
+      // Also update the main preview
+      this.updatePreview();
+    };
 
     // Two-column printing
     shadowRoot.getElementById('print-columns').onclick = () => this.printTwoColumn();
@@ -1071,12 +1075,22 @@ class ThermalPrinterCard extends HTMLElement {
 
   callService(service, data = {}) {
     try {
-      // Use the correct service format for ESPHome
-      const deviceName = this._config.entity.split('.')[1].replace('_printer_wake', '');
+      // Extract device name from entity (remove the switch and printer_wake parts)
+      let deviceName = this._config.entity.split('.')[1];
+      // Handle common entity naming patterns
+      if (deviceName.endsWith('_printer_wake')) {
+        deviceName = deviceName.replace('_printer_wake', '');
+      } else if (deviceName.endsWith('_wake')) {
+        deviceName = deviceName.replace('_wake', '');
+      }
+      
       const serviceName = `${deviceName}_${service}`;
+      ESP_LOGD("thermal_printer_card", `Calling service: esphome.${serviceName}`);
+      
       this._hass.callService('esphome', serviceName, data);
     } catch (error) {
       this.showError(`Failed to call service: ${error.message}`);
+      console.error('Service call error:', error);
     }
   }
 
