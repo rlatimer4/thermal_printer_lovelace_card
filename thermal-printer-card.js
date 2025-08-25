@@ -257,6 +257,8 @@ class ThermalPrinterCard extends HTMLElement {
 
     textContent.appendChild(textInput);
     textContent.appendChild(formatControls);
+    textContent.appendChild(printTextBtn);
+
     // Character limit tracking
     this.updateCharacterLimits = function() {
       const size = sizeSelect.value;
@@ -324,7 +326,98 @@ class ThermalPrinterCard extends HTMLElement {
     // Initialize character limits
     this.updateCharacterLimits();
 
-    // Add column length limiting
+    // Two-Column Printing Section
+    const twoColSection = this.createCollapsibleSection('📊 Two-Column Printing');
+    const twoColContent = twoColSection.content;
+
+    const twoColContainer = document.createElement('div');
+    twoColContainer.style.display = 'grid';
+    twoColContainer.style.gridTemplateColumns = '1fr 1fr';
+    twoColContainer.style.gap = '12px';
+    twoColContainer.style.margin = '12px 0';
+
+    const leftColInput = document.createElement('input');
+    leftColInput.type = 'text';
+    leftColInput.placeholder = 'Left column text';
+    leftColInput.style.width = '100%';
+    leftColInput.style.padding = '10px';
+    leftColInput.style.border = '1px solid var(--divider-color)';
+    leftColInput.style.borderRadius = '6px';
+    leftColInput.style.fontFamily = 'Courier New, monospace';
+    leftColInput.style.boxSizing = 'border-box';
+
+    const rightColInput = document.createElement('input');
+    rightColInput.type = 'text';
+    rightColInput.placeholder = 'Right column text';
+    rightColInput.style.width = '100%';
+    rightColInput.style.padding = '10px';
+    rightColInput.style.border = '1px solid var(--divider-color)';
+    rightColInput.style.borderRadius = '6px';
+    rightColInput.style.fontFamily = 'Courier New, monospace';
+    rightColInput.style.boxSizing = 'border-box';
+
+    twoColContainer.appendChild(leftColInput);
+    twoColContainer.appendChild(rightColInput);
+
+    const twoColControls = document.createElement('div');
+    twoColControls.style.display = 'grid';
+    twoColControls.style.gridTemplateColumns = '1fr 1fr';
+    twoColControls.style.gap = '8px';
+    twoColControls.style.margin = '8px 0';
+
+    const twoColSizeSelect = document.createElement('select');
+    twoColSizeSelect.style.padding = '8px';
+    twoColSizeSelect.style.border = '1px solid var(--divider-color)';
+    twoColSizeSelect.style.borderRadius = '6px';
+    this.addOptions(twoColSizeSelect, [
+      { value: 'S', text: 'Small (32 chars)', selected: true },
+      { value: 'M', text: 'Medium (24 chars)' },
+      { value: 'L', text: 'Large (16 chars)' }
+    ]);
+
+    const fillDotsCheck = this.createCheckbox('Fill with dots');
+    fillDotsCheck.checked = true; // Default to true for receipts
+
+    twoColControls.appendChild(twoColSizeSelect);
+    twoColControls.appendChild(fillDotsCheck);
+
+    const printTwoColBtn = document.createElement('button');
+    printTwoColBtn.innerHTML = '📊 Print Two Columns';
+    this.styleButton(printTwoColBtn);
+
+    printTwoColBtn.addEventListener('click', function() {
+      const leftText = leftColInput.value;
+      const rightText = rightColInput.value;
+      
+      if (!leftText.trim() && !rightText.trim()) {
+        alert('Please enter text for at least one column');
+        return;
+      }
+      
+      self.callService('print_two_column', {
+        left_text: leftText,
+        right_text: rightText,
+        fill_dots: fillDotsCheck.checked,
+        text_size: twoColSizeSelect.value
+      });
+    });
+
+    const twoColExample = document.createElement('div');
+    twoColExample.innerHTML = '💡 Perfect for receipts: "Coffee..................$3.50"';
+    twoColExample.style.fontSize = '12px';
+    twoColExample.style.color = 'var(--secondary-text-color)';
+    twoColExample.style.margin = '8px 0';
+    twoColExample.style.padding = '8px';
+    twoColExample.style.background = 'var(--secondary-background-color)';
+    twoColExample.style.borderRadius = '4px';
+    twoColExample.style.fontFamily = 'monospace';
+
+    twoColContent.appendChild(twoColContainer);
+    twoColContent.appendChild(twoColControls);
+    twoColContent.appendChild(printTwoColBtn);
+    twoColContent.appendChild(twoColExample);
+
+    // NOW define the two-column limits function after elements exist
     const updateTwoColumnLimits = function() {
       const size = twoColSizeSelect.value;
       let totalChars = 32;
@@ -343,7 +436,94 @@ class ThermalPrinterCard extends HTMLElement {
     twoColSizeSelect.addEventListener('change', updateTwoColumnLimits);
     updateTwoColumnLimits();
 
-    // Add three column limiting
+    // Three-Column Printing Section
+    const threeColSection = this.createCollapsibleSection('📋 Three-Column Table');
+    const threeColContent = threeColSection.content;
+
+    const threeColContainer = document.createElement('div');
+    threeColContainer.style.display = 'grid';
+    threeColContainer.style.gridTemplateColumns = '1fr 1fr 1fr';
+    threeColContainer.style.gap = '8px';
+    threeColContainer.style.margin = '12px 0';
+
+    const col1Input = document.createElement('input');
+    col1Input.type = 'text';
+    col1Input.placeholder = 'Column 1';
+    col1Input.style.width = '100%';
+    col1Input.style.padding = '8px';
+    col1Input.style.border = '1px solid var(--divider-color)';
+    col1Input.style.borderRadius = '6px';
+    col1Input.style.fontFamily = 'Courier New, monospace';
+    col1Input.style.fontSize = '12px';
+    col1Input.style.boxSizing = 'border-box';
+
+    const col2Input = document.createElement('input');
+    col2Input.type = 'text';
+    col2Input.placeholder = 'Column 2';
+    col2Input.style.width = '100%';
+    col2Input.style.padding = '8px';
+    col2Input.style.border = '1px solid var(--divider-color)';
+    col2Input.style.borderRadius = '6px';
+    col2Input.style.fontFamily = 'Courier New, monospace';
+    col2Input.style.fontSize = '12px';
+    col2Input.style.boxSizing = 'border-box';
+
+    const col3Input = document.createElement('input');
+    col3Input.type = 'text';
+    col3Input.placeholder = 'Column 3';
+    col3Input.style.width = '100%';
+    col3Input.style.padding = '8px';
+    col3Input.style.border = '1px solid var(--divider-color)';
+    col3Input.style.borderRadius = '6px';
+    col3Input.style.fontFamily = 'Courier New, monospace';
+    col3Input.style.fontSize = '12px';
+    col3Input.style.boxSizing = 'border-box';
+
+    threeColContainer.appendChild(col1Input);
+    threeColContainer.appendChild(col2Input);
+    threeColContainer.appendChild(col3Input);
+
+    const headerCheck = this.createCheckbox('Format as header row');
+    headerCheck.style.margin = '8px 0';
+
+    const printThreeColBtn = document.createElement('button');
+    printThreeColBtn.innerHTML = '📋 Print Table Row';
+    this.styleButton(printThreeColBtn);
+
+    printThreeColBtn.addEventListener('click', function() {
+      const col1 = col1Input.value;
+      const col2 = col2Input.value;
+      const col3 = col3Input.value;
+      
+      if (!col1.trim() && !col2.trim() && !col3.trim()) {
+        alert('Please enter text for at least one column');
+        return;
+      }
+      
+      self.callService('print_table_row', {
+        col1: col1,
+        col2: col2,
+        col3: col3,
+        header: headerCheck.checked
+      });
+    });
+
+    const threeColExample = document.createElement('div');
+    threeColExample.innerHTML = '💡 Perfect for tables: "Item      Qty       Price"';
+    threeColExample.style.fontSize = '12px';
+    threeColExample.style.color = 'var(--secondary-text-color)';
+    threeColExample.style.margin = '8px 0';
+    threeColExample.style.padding = '8px';
+    threeColExample.style.background = 'var(--secondary-background-color)';
+    threeColExample.style.borderRadius = '4px';
+    threeColExample.style.fontFamily = 'monospace';
+
+    threeColContent.appendChild(threeColContainer);
+    threeColContent.appendChild(headerCheck);
+    threeColContent.appendChild(printThreeColBtn);
+    threeColContent.appendChild(threeColExample);
+
+    // NOW define the three column limits function after elements exist
     const updateThreeColumnLimits = function() {
       const maxPerCol = 10; // Fixed for 3-column table
       col1Input.setAttribute('maxlength', maxPerCol);
@@ -513,183 +693,7 @@ class ThermalPrinterCard extends HTMLElement {
     qrContent.appendChild(qrInput);
     qrContent.appendChild(qrLabelInput);
     qrContent.appendChild(qrControls);
-    // Two-Column Printing Section
-    const twoColSection = this.createCollapsibleSection('📊 Two-Column Printing');
-    const twoColContent = twoColSection.content;
-
-    const twoColContainer = document.createElement('div');
-    twoColContainer.style.display = 'grid';
-    twoColContainer.style.gridTemplateColumns = '1fr 1fr';
-    twoColContainer.style.gap = '12px';
-    twoColContainer.style.margin = '12px 0';
-
-    const leftColInput = document.createElement('input');
-    leftColInput.type = 'text';
-    leftColInput.placeholder = 'Left column text';
-    leftColInput.style.width = '100%';
-    leftColInput.style.padding = '10px';
-    leftColInput.style.border = '1px solid var(--divider-color)';
-    leftColInput.style.borderRadius = '6px';
-    leftColInput.style.fontFamily = 'Courier New, monospace';
-    leftColInput.style.boxSizing = 'border-box';
-
-    const rightColInput = document.createElement('input');
-    rightColInput.type = 'text';
-    rightColInput.placeholder = 'Right column text';
-    rightColInput.style.width = '100%';
-    rightColInput.style.padding = '10px';
-    rightColInput.style.border = '1px solid var(--divider-color)';
-    rightColInput.style.borderRadius = '6px';
-    rightColInput.style.fontFamily = 'Courier New, monospace';
-    rightColInput.style.boxSizing = 'border-box';
-
-    twoColContainer.appendChild(leftColInput);
-    twoColContainer.appendChild(rightColInput);
-
-    const twoColControls = document.createElement('div');
-    twoColControls.style.display = 'grid';
-    twoColControls.style.gridTemplateColumns = '1fr 1fr';
-    twoColControls.style.gap = '8px';
-    twoColControls.style.margin = '8px 0';
-
-    const twoColSizeSelect = document.createElement('select');
-    twoColSizeSelect.style.padding = '8px';
-    twoColSizeSelect.style.border = '1px solid var(--divider-color)';
-    twoColSizeSelect.style.borderRadius = '6px';
-    this.addOptions(twoColSizeSelect, [
-      { value: 'S', text: 'Small (32 chars)', selected: true },
-      { value: 'M', text: 'Medium (24 chars)' },
-      { value: 'L', text: 'Large (16 chars)' }
-    ]);
-
-    const fillDotsCheck = this.createCheckbox('Fill with dots');
-    fillDotsCheck.checked = true; // Default to true for receipts
-
-    twoColControls.appendChild(twoColSizeSelect);
-    twoColControls.appendChild(fillDotsCheck);
-
-    const printTwoColBtn = document.createElement('button');
-    printTwoColBtn.innerHTML = '📊 Print Two Columns';
-    this.styleButton(printTwoColBtn);
-
-    printTwoColBtn.addEventListener('click', function() {
-      const leftText = leftColInput.value;
-      const rightText = rightColInput.value;
-      
-      if (!leftText.trim() && !rightText.trim()) {
-        alert('Please enter text for at least one column');
-        return;
-      }
-      
-      self.callService('print_two_column', {
-        left_text: leftText,
-        right_text: rightText,
-        fill_dots: fillDotsCheck.checked,
-        text_size: twoColSizeSelect.value
-      });
-    });
-
-    const twoColExample = document.createElement('div');
-    twoColExample.innerHTML = '💡 Perfect for receipts: "Coffee..................$3.50"';
-    twoColExample.style.fontSize = '12px';
-    twoColExample.style.color = 'var(--secondary-text-color)';
-    twoColExample.style.margin = '8px 0';
-    twoColExample.style.padding = '8px';
-    twoColExample.style.background = 'var(--secondary-background-color)';
-    twoColExample.style.borderRadius = '4px';
-    twoColExample.style.fontFamily = 'monospace';
-
-    twoColContent.appendChild(twoColContainer);
-    twoColContent.appendChild(twoColControls);
-    twoColContent.appendChild(printTwoColBtn);
-    twoColContent.appendChild(twoColExample);
-
-    // Three-Column Printing Section
-    const threeColSection = this.createCollapsibleSection('📋 Three-Column Table');
-    const threeColContent = threeColSection.content;
-
-    const threeColContainer = document.createElement('div');
-    threeColContainer.style.display = 'grid';
-    threeColContainer.style.gridTemplateColumns = '1fr 1fr 1fr';
-    threeColContainer.style.gap = '8px';
-    threeColContainer.style.margin = '12px 0';
-
-    const col1Input = document.createElement('input');
-    col1Input.type = 'text';
-    col1Input.placeholder = 'Column 1';
-    col1Input.style.width = '100%';
-    col1Input.style.padding = '8px';
-    col1Input.style.border = '1px solid var(--divider-color)';
-    col1Input.style.borderRadius = '6px';
-    col1Input.style.fontFamily = 'Courier New, monospace';
-    col1Input.style.fontSize = '12px';
-    col1Input.style.boxSizing = 'border-box';
-
-    const col2Input = document.createElement('input');
-    col2Input.type = 'text';
-    col2Input.placeholder = 'Column 2';
-    col2Input.style.width = '100%';
-    col2Input.style.padding = '8px';
-    col2Input.style.border = '1px solid var(--divider-color)';
-    col2Input.style.borderRadius = '6px';
-    col2Input.style.fontFamily = 'Courier New, monospace';
-    col2Input.style.fontSize = '12px';
-    col2Input.style.boxSizing = 'border-box';
-
-    const col3Input = document.createElement('input');
-    col3Input.type = 'text';
-    col3Input.placeholder = 'Column 3';
-    col3Input.style.width = '100%';
-    col3Input.style.padding = '8px';
-    col3Input.style.border = '1px solid var(--divider-color)';
-    col3Input.style.borderRadius = '6px';
-    col3Input.style.fontFamily = 'Courier New, monospace';
-    col3Input.style.fontSize = '12px';
-    col3Input.style.boxSizing = 'border-box';
-
-    threeColContainer.appendChild(col1Input);
-    threeColContainer.appendChild(col2Input);
-    threeColContainer.appendChild(col3Input);
-
-    const headerCheck = this.createCheckbox('Format as header row');
-    headerCheck.style.margin = '8px 0';
-
-    const printThreeColBtn = document.createElement('button');
-    printThreeColBtn.innerHTML = '📋 Print Table Row';
-    this.styleButton(printThreeColBtn);
-
-    printThreeColBtn.addEventListener('click', function() {
-      const col1 = col1Input.value;
-      const col2 = col2Input.value;
-      const col3 = col3Input.value;
-      
-      if (!col1.trim() && !col2.trim() && !col3.trim()) {
-        alert('Please enter text for at least one column');
-        return;
-      }
-      
-      self.callService('print_table_row', {
-        col1: col1,
-        col2: col2,
-        col3: col3,
-        header: headerCheck.checked
-      });
-    });
-
-    const threeColExample = document.createElement('div');
-    threeColExample.innerHTML = '💡 Perfect for tables: "Item      Qty       Price"';
-    threeColExample.style.fontSize = '12px';
-    threeColExample.style.color = 'var(--secondary-text-color)';
-    threeColExample.style.margin = '8px 0';
-    threeColExample.style.padding = '8px';
-    threeColExample.style.background = 'var(--secondary-background-color)';
-    threeColExample.style.borderRadius = '4px';
-    threeColExample.style.fontFamily = 'monospace';
-
-    threeColContent.appendChild(threeColContainer);
-    threeColContent.appendChild(headerCheck);
-    threeColContent.appendChild(printThreeColBtn);
-    threeColContent.appendChild(threeColExample);
+    qrContent.appendChild(printQrBtn);
 
     // Barcode Printing Section
     const barcodeSection = this.createCollapsibleSection('📱 Barcode Printing');
