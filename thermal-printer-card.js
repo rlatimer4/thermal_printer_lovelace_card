@@ -1,17 +1,4 @@
-const resetBtn = this.createButton('🔄 Reset Usage', function() {
-      if (confirm('Reset paper usage counters?')) {
-        this.callService('reset_paper_usage');
-      }
-    }.bind(this));
-    
-    const testRotateBtn = this.createButton('🔄 Test Rotation', function() {
-      this.callService('test_rotation');
-    }.bind(this));
-
-    actionsRow2.appendChild(feedBtn);
-    actionsRow2.appendChild(separatorBtn);
-    actionsRow2.appendChild(resetBtn);
-    actionsRow2.appendChild(testRotateBtn);class ThermalPrinterCard extends HTMLElement {
+class ThermalPrinterCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -155,10 +142,10 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     actionsRow2.style.margin = '8px 0';
     actionsRow2.style.flexWrap = 'wrap';
 
-    const feedBtn = this.createButton('📄 Feed Paper', function() { 
+    const feedBtn = this.createButton('📄 Feed Paper', () => { 
       this.callService('feed_paper', { lines: 3 });
-    }.bind(this));
-    const separatorBtn = this.createButton('➖ Separator', function() {
+    });
+    const separatorBtn = this.createButton('➖ Separator', () => {
       this.callService('print_text', {
         message: '================================',
         text_size: 'S',
@@ -168,12 +155,12 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
         inverse: false,
         rotation: 0
       });
-    }.bind(this));
-    const resetBtn = this.createButton('🔄 Reset Usage', function() {
+    });
+    const resetBtn = this.createButton('🔄 Reset Usage', () => {
       if (confirm('Reset paper usage counters?')) {
         this.callService('reset_paper_usage');
       }
-    }.bind(this));
+    });
 
     actionsRow2.appendChild(feedBtn);
     actionsRow2.appendChild(separatorBtn);
@@ -241,8 +228,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     printTextBtn.className = 'control-button';
     this.styleButton(printTextBtn);
 
-    const self = this;
-    printTextBtn.addEventListener('click', function() {
+    printTextBtn.addEventListener('click', () => {
       const text = textInput.value;
       if (!text.trim()) {
         alert('Please enter some text to print');
@@ -250,13 +236,13 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
       }
 
       if (rotateCheck.checked) {
-        self.callService('print_rotated_text', {
+        this.callService('print_rotated_text', {
           message: text,
           rotation: 1,
           size: sizeSelect.value
         });
       } else {
-        self.callService('print_text', {
+        this.callService('print_text', {
           message: text,
           text_size: sizeSelect.value,
           alignment: alignSelect.value,
@@ -271,73 +257,6 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     textContent.appendChild(textInput);
     textContent.appendChild(formatControls);
     textContent.appendChild(printTextBtn);
-
-    // Character limit tracking
-    this.updateCharacterLimits = function() {
-      const size = sizeSelect.value;
-      const bold = boldCheck.checked;
-      const underline = underlineCheck.checked;
-      const rotate = rotateCheck.checked;
-      
-      let maxChars = 32; // Default for small
-      if (size === 'M') maxChars = 24;
-      else if (size === 'L') maxChars = 16;
-      
-      // Modifiers reduce available space
-      if (bold) maxChars = Math.floor(maxChars * 0.8);
-      if (underline) maxChars = Math.floor(maxChars * 0.9);
-      if (rotate) maxChars = Math.floor(maxChars * 0.7); // Rotation takes more space
-      
-      // Update placeholder and validation
-      const currentLength = textInput.value.length;
-      const remaining = Math.max(0, maxChars - currentLength);
-      
-      textInput.placeholder = `Enter text to print... (${remaining}/${maxChars} chars remaining)`;
-      
-      if (currentLength > maxChars) {
-        textInput.style.borderColor = 'var(--error-color)';
-        textInput.style.background = 'rgba(var(--rgb-error-color), 0.1)';
-      } else if (currentLength > maxChars * 0.8) {
-        textInput.style.borderColor = 'var(--warning-color)';
-        textInput.style.background = 'rgba(var(--rgb-warning-color), 0.1)';
-      } else {
-        textInput.style.borderColor = 'var(--divider-color)';
-        textInput.style.background = 'var(--card-background-color)';
-      }
-      
-      return maxChars;
-    };
-    
-    // Add character limiting to text input
-    textInput.addEventListener('input', function() {
-      const maxChars = self.updateCharacterLimits();
-      const lines = this.value.split('\n');
-      let truncated = false;
-      
-      // Limit each line and total length
-      const processedLines = lines.map(line => {
-        if (line.length > maxChars) {
-          truncated = true;
-          return line.substring(0, maxChars);
-        }
-        return line;
-      });
-      
-      if (truncated) {
-        const cursorPos = this.selectionStart;
-        this.value = processedLines.join('\n');
-        this.setSelectionRange(cursorPos - 1, cursorPos - 1);
-      }
-    });
-
-    // Update limits when settings change
-    sizeSelect.addEventListener('change', this.updateCharacterLimits);
-    boldCheck.addEventListener('change', this.updateCharacterLimits);
-    underlineCheck.addEventListener('change', this.updateCharacterLimits);
-    rotateCheck.addEventListener('change', this.updateCharacterLimits);
-    
-    // Initialize character limits
-    this.updateCharacterLimits();
 
     // Two-Column Printing Section
     const twoColSection = this.createCollapsibleSection('📊 Two-Column Printing');
@@ -389,7 +308,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     ]);
 
     const fillDotsCheck = this.createCheckbox('Fill with dots');
-    fillDotsCheck.checked = true; // Default to true for receipts
+    fillDotsCheck.checked = true;
 
     twoColControls.appendChild(twoColSizeSelect);
     twoColControls.appendChild(fillDotsCheck);
@@ -398,7 +317,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     printTwoColBtn.innerHTML = '📊 Print Two Columns';
     this.styleButton(printTwoColBtn);
 
-    printTwoColBtn.addEventListener('click', function() {
+    printTwoColBtn.addEventListener('click', () => {
       const leftText = leftColInput.value;
       const rightText = rightColInput.value;
       
@@ -407,7 +326,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
         return;
       }
       
-      self.callService('print_two_column', {
+      this.callService('print_two_column', {
         left_text: leftText,
         right_text: rightText,
         fill_dots: fillDotsCheck.checked,
@@ -430,26 +349,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     twoColContent.appendChild(printTwoColBtn);
     twoColContent.appendChild(twoColExample);
 
-    // NOW define the two-column limits function after elements exist
-    const updateTwoColumnLimits = function() {
-      const size = twoColSizeSelect.value;
-      let totalChars = 32;
-      if (size === 'M') totalChars = 24;
-      else if (size === 'L') totalChars = 16;
-      
-      const leftMax = Math.floor(totalChars * 0.6);
-      const rightMax = totalChars - leftMax - 1;
-      
-      leftColInput.setAttribute('maxlength', leftMax);
-      rightColInput.setAttribute('maxlength', rightMax);
-      leftColInput.placeholder = `Left column (max ${leftMax})`;
-      rightColInput.placeholder = `Right column (max ${rightMax})`;
-    };
-    
-    twoColSizeSelect.addEventListener('change', updateTwoColumnLimits);
-    updateTwoColumnLimits();
-
-    // Three-Column Printing Section
+    // Three-Column Table Section
     const threeColSection = this.createCollapsibleSection('📋 Three-Column Table');
     const threeColContent = threeColSection.content;
 
@@ -503,7 +403,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     printThreeColBtn.innerHTML = '📋 Print Table Row';
     this.styleButton(printThreeColBtn);
 
-    printThreeColBtn.addEventListener('click', function() {
+    printThreeColBtn.addEventListener('click', () => {
       const col1 = col1Input.value;
       const col2 = col2Input.value;
       const col3 = col3Input.value;
@@ -513,7 +413,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
         return;
       }
       
-      self.callService('print_table_row', {
+      this.callService('print_table_row', {
         col1: col1,
         col2: col2,
         col3: col3,
@@ -536,20 +436,8 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     threeColContent.appendChild(printThreeColBtn);
     threeColContent.appendChild(threeColExample);
 
-    // NOW define the three column limits function after elements exist
-    const updateThreeColumnLimits = function() {
-      const maxPerCol = 10; // Fixed for 3-column table
-      col1Input.setAttribute('maxlength', maxPerCol);
-      col2Input.setAttribute('maxlength', maxPerCol);
-      col3Input.setAttribute('maxlength', maxPerCol);
-      col1Input.placeholder = `Col 1 (${maxPerCol} max)`;
-      col2Input.placeholder = `Col 2 (${maxPerCol} max)`;
-      col3Input.placeholder = `Col 3 (${maxPerCol} max)`;
-    };
-    updateThreeColumnLimits();
-
     // Label Printing Section
-    const labelSection = this.createCollapsibleSection('🏷️ Label Printing (Rotated + Vertical)');
+    const labelSection = this.createCollapsibleSection('🏷️ Label Printing');
     const labelContent = labelSection.content;
 
     const labelInput = document.createElement('input');
@@ -578,8 +466,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     this.addOptions(labelSizeSelect, [
       { value: 'S', text: 'Small Label' },
       { value: 'M', text: 'Medium Label', selected: true },
-      { value: 'L', text: 'Large Label' },
-      { value: 'XL', text: 'Extra Large' }
+      { value: 'L', text: 'Large Label' }
     ]);
 
     const spacingSelect = document.createElement('select');
@@ -597,68 +484,36 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     labelControls.appendChild(spacingSelect);
 
     const printLabelBtn = document.createElement('button');
-    printLabelBtn.innerHTML = '🏷️ Print Label (Rotated)';
+    printLabelBtn.innerHTML = '🏷️ Print Label';
     printLabelBtn.style.background = 'var(--success-color)';
     this.styleButton(printLabelBtn);
 
-    // Add alternative label button
-    const printVerticalBtn = document.createElement('button');
-    printVerticalBtn.innerHTML = '📝 Print Vertical (No Rotation)';
-    printVerticalBtn.style.background = 'var(--warning-color)';
-    printVerticalBtn.style.margin = '4px 0';
-    this.styleButton(printVerticalBtn);
-
-    printLabelBtn.addEventListener('click', function() {
+    printLabelBtn.addEventListener('click', () => {
       const text = labelInput.value;
       if (!text.trim()) {
         alert('Please enter label text');
         return;
       }
       
-      console.log('Printing rotated label:', text, 'length:', text.length);
-      
-      self.callService('print_label_text', {
+      this.callService('print_rotated_text', {
         message: text,
-        size: labelSizeSelect.value,
-        spacing: parseInt(spacingSelect.value)
-      });
-    });
-
-    // Alternative vertical printing without rotation
-    printVerticalBtn.addEventListener('click', function() {
-      const text = labelInput.value;
-      if (!text.trim()) {
-        alert('Please enter label text');
-        return;
-      }
-      
-      console.log('Printing vertical label:', text, 'length:', text.length);
-      
-      self.callService('print_vertical_text', {
-        message: text,
-        spacing: parseInt(spacingSelect.value)
+        rotation: 1,
+        size: labelSizeSelect.value
       });
     });
 
     const labelInfo = document.createElement('div');
-    labelInfo.innerHTML = `
-      💡 <strong>Label Options:</strong><br>
-      🏷️ <strong>Rotated:</strong> Uses ESC V rotation (if supported)<br>
-      📝 <strong>Vertical:</strong> Characters on separate lines<br>
-      <em>Try both to see which works better with your printer!</em>
-    `;
+    labelInfo.innerHTML = '💡 Prints rotated characters vertically down the roll - perfect for labels!';
     labelInfo.style.fontSize = '12px';
     labelInfo.style.color = 'var(--secondary-text-color)';
     labelInfo.style.margin = '8px 0';
     labelInfo.style.padding = '8px';
     labelInfo.style.background = 'var(--secondary-background-color)';
     labelInfo.style.borderRadius = '4px';
-    labelInfo.style.lineHeight = '1.4';
 
     labelContent.appendChild(labelInput);
     labelContent.appendChild(labelControls);
     labelContent.appendChild(printLabelBtn);
-    labelContent.appendChild(printVerticalBtn);
     labelContent.appendChild(labelInfo);
 
     // QR Code Section
@@ -720,14 +575,14 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     printQrBtn.innerHTML = '📱 Print QR Code';
     this.styleButton(printQrBtn);
 
-    printQrBtn.addEventListener('click', function() {
+    printQrBtn.addEventListener('click', () => {
       const data = qrInput.value;
       if (!data.trim()) {
         alert('Please enter QR code data');
         return;
       }
       
-      self.callService('print_qr_code', {
+      this.callService('print_qr_code', {
         data: data,
         size: parseInt(qrSizeSelect.value),
         error_correction: parseInt(qrErrorSelect.value),
@@ -773,80 +628,18 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     barcodeInput.style.fontFamily = 'monospace';
     barcodeInput.style.boxSizing = 'border-box';
 
-    const barcodeError = document.createElement('div');
-    barcodeError.style.display = 'none';
-    barcodeError.style.background = 'var(--error-color)';
-    barcodeError.style.color = 'white';
-    barcodeError.style.padding = '8px';
-    barcodeError.style.borderRadius = '4px';
-    barcodeError.style.margin = '8px 0';
-    barcodeError.style.fontSize = '12px';
-
     const printBarcodeBtn = document.createElement('button');
     printBarcodeBtn.innerHTML = '📱 Print Barcode';
     this.styleButton(printBarcodeBtn);
 
-    // Barcode validation function
-    function validateBarcode() {
-      const type = parseInt(barcodeTypeSelect.value);
-      const data = barcodeInput.value;
-      let error = null;
-
-      if (!data.trim()) {
-        barcodeError.style.display = 'none';
-        return true;
-      }
-
-      switch (type) {
-        case 0: // UPC-A
-          if (!/^\d{11,12}$/.test(data)) error = 'UPC-A requires 11-12 digits';
-          break;
-        case 1: // UPC-E
-          if (!/^\d{6,8}$/.test(data)) error = 'UPC-E requires 6-8 digits';
-          break;
-        case 2: // EAN13
-          if (!/^\d{12,13}$/.test(data)) error = 'EAN13 requires 12-13 digits';
-          break;
-        case 3: // EAN8
-          if (!/^\d{7,8}$/.test(data)) error = 'EAN8 requires 7-8 digits';
-          break;
-        case 4: // CODE39
-          if (!/^[0-9A-Z\-\.\s\$\/\+\%]+$/.test(data)) error = 'CODE39: Invalid characters';
-          break;
-        case 5: // ITF
-          if (!/^\d+$/.test(data) || data.length % 2 !== 0) error = 'ITF requires even number of digits';
-          break;
-        case 8: // CODE128
-          if (data.length < 2 || data.length > 255) error = 'CODE128: 2-255 characters required';
-          break;
-      }
-
-      if (error) {
-        barcodeError.innerHTML = error;
-        barcodeError.style.display = 'block';
-        return false;
-      } else {
-        barcodeError.style.display = 'none';
-        return true;
-      }
-    }
-
-    barcodeInput.addEventListener('input', validateBarcode);
-    barcodeTypeSelect.addEventListener('change', validateBarcode);
-
-    printBarcodeBtn.addEventListener('click', function() {
+    printBarcodeBtn.addEventListener('click', () => {
       const data = barcodeInput.value;
       if (!data.trim()) {
         alert('Please enter barcode data');
         return;
       }
-
-      if (!validateBarcode()) {
-        alert('Please fix barcode validation errors');
-        return;
-      }
       
-      self.callService('print_barcode', {
+      this.callService('print_barcode', {
         barcode_type: parseInt(barcodeTypeSelect.value),
         barcode_data: data
       });
@@ -854,7 +647,6 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
 
     barcodeContent.appendChild(barcodeTypeSelect);
     barcodeContent.appendChild(barcodeInput);
-    barcodeContent.appendChild(barcodeError);
     barcodeContent.appendChild(printBarcodeBtn);
 
     // Assembly
@@ -867,8 +659,8 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     content.appendChild(twoColSection.section);
     content.appendChild(threeColSection.section);
     content.appendChild(labelSection.section);
-    content.appendChild(barcodeSection.section);
     content.appendChild(qrSection.section);
+    content.appendChild(barcodeSection.section);
 
     card.appendChild(content);
     root.appendChild(card);
@@ -876,27 +668,27 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     this._config = config;
 
     // Event listeners for all collapsible sections
-    textSection.toggle.addEventListener('click', function() {
-      self.toggleSection(textSection);
+    textSection.toggle.addEventListener('click', () => {
+      this.toggleSection(textSection);
     });
-    twoColSection.toggle.addEventListener('click', function() {
-      self.toggleSection(twoColSection);
+    twoColSection.toggle.addEventListener('click', () => {
+      this.toggleSection(twoColSection);
     });
-    threeColSection.toggle.addEventListener('click', function() {
-      self.toggleSection(threeColSection);
+    threeColSection.toggle.addEventListener('click', () => {
+      this.toggleSection(threeColSection);
     });
-    labelSection.toggle.addEventListener('click', function() {
-      self.toggleSection(labelSection);
+    labelSection.toggle.addEventListener('click', () => {
+      this.toggleSection(labelSection);
     });
-    barcodeSection.toggle.addEventListener('click', function() {
-      self.toggleSection(barcodeSection);
+    qrSection.toggle.addEventListener('click', () => {
+      this.toggleSection(qrSection);
     });
-    qrSection.toggle.addEventListener('click', function() {
-      self.toggleSection(qrSection);
+    barcodeSection.toggle.addEventListener('click', () => {
+      this.toggleSection(barcodeSection);
     });
 
-    refreshBtn.addEventListener('click', function() {
-      self.callService('wake_printer');
+    refreshBtn.addEventListener('click', () => {
+      this.callService('wake_printer');
     });
   }
 
@@ -1011,10 +803,14 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
     container.appendChild(checkbox);
     container.appendChild(labelText);
 
-    container.checked = checkbox.checked;
+    // Make the container behave like a checkbox
     Object.defineProperty(container, 'checked', {
       get: () => checkbox.checked,
       set: (value) => { checkbox.checked = value; }
+    });
+
+    container.addEventListener('change', () => {
+      // Forward the change event to the checkbox
     });
 
     return container;
@@ -1027,6 +823,7 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
       const entityParts = this._config.entity.split('.');
       let deviceName = entityParts[1];
       
+      // Clean up device name
       deviceName = deviceName.replace(/_printer_wake$/, '');
       deviceName = deviceName.replace(/_wake$/, '');
       
@@ -1048,32 +845,52 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
 
     // Update status
     const statusText = this.shadowRoot.getElementById('status-text');
+    const statusDot = this.shadowRoot.getElementById('status-dot');
     const entity = hass.states[this._config.entity];
+    
     if (statusText && entity) {
-      statusText.innerHTML = entity.state === 'on' ? 'Ready' : 'Offline';
+      const isOnline = entity.state === 'on';
+      statusText.innerHTML = isOnline ? 'Printer Ready' : 'Printer Offline';
+      
+      if (statusDot) {
+        statusDot.style.background = isOnline ? 'var(--success-color)' : 'var(--error-color)';
+      }
     }
 
-    // Update usage if sensors exist
-    const usageSensor = hass.states[this._config.usage_sensor] || hass.states['sensor.thermal_printer_paper_usage_percent'];
+    // Update paper usage if sensors exist
+    const usageSensor = hass.states[this._config.usage_sensor] || 
+                       hass.states['sensor.thermal_printer_paper_usage_percent'];
     if (usageSensor) {
       const usageFill = this.shadowRoot.getElementById('usage-fill');
       const usageText = this.shadowRoot.getElementById('usage-text');
       const percentage = parseFloat(usageSensor.state) || 0;
       
-      if (usageFill) usageFill.style.width = Math.min(percentage, 100) + '%';
-      if (usageText) usageText.innerHTML = percentage.toFixed(1) + '%';
+      if (usageFill) {
+        usageFill.style.width = Math.min(percentage, 100) + '%';
+      }
+      if (usageText) {
+        usageText.innerHTML = percentage.toFixed(1) + '%';
+      }
     }
 
-    const usageMmSensor = hass.states[this._config.usage_mm_sensor] || hass.states['sensor.thermal_printer_paper_usage_mm'];
+    // Update usage in mm
+    const usageMmSensor = hass.states[this._config.usage_mm_sensor] || 
+                         hass.states['sensor.thermal_printer_paper_usage_mm'];
     if (usageMmSensor) {
       const usageMm = this.shadowRoot.getElementById('usage-mm');
-      if (usageMm) usageMm.innerHTML = parseFloat(usageMmSensor.state).toFixed(1);
+      if (usageMm) {
+        usageMm.innerHTML = parseFloat(usageMmSensor.state).toFixed(1);
+      }
     }
 
-    const linesSensor = hass.states[this._config.lines_sensor] || hass.states['sensor.thermal_printer_lines_printed'];
+    // Update lines printed
+    const linesSensor = hass.states[this._config.lines_sensor] || 
+                       hass.states['sensor.thermal_printer_lines_printed'];
     if (linesSensor) {
       const linesPrinted = this.shadowRoot.getElementById('lines-printed');
-      if (linesPrinted) linesPrinted.innerHTML = linesSensor.state;
+      if (linesPrinted) {
+        linesPrinted.innerHTML = linesSensor.state;
+      }
     }
   }
 
@@ -1082,16 +899,18 @@ const resetBtn = this.createButton('🔄 Reset Usage', function() {
   }
 }
 
+// Register the custom element
 customElements.define('thermal-printer-card', ThermalPrinterCard);
 
+// Register with custom cards list
 if (!window.customCards) {
   window.customCards = [];
 }
 
 window.customCards.push({
   type: 'thermal-printer-card',
-  name: 'Enhanced Thermal Printer Card',
-  description: 'Complete thermal printer control with label printing'
+  name: 'Thermal Printer Card',
+  description: 'Complete thermal printer control with text, barcode, and QR code printing'
 });
 
-console.log('Enhanced Thermal Printer Card loaded successfully!');
+console.log('Thermal Printer Card loaded successfully!');
