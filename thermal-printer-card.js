@@ -436,85 +436,7 @@ class ThermalPrinterCard extends HTMLElement {
     threeColContent.appendChild(printThreeColBtn);
     threeColContent.appendChild(threeColExample);
 
-    // Label Printing Section
-    const labelSection = this.createCollapsibleSection('🏷️ Label Printing');
-    const labelContent = labelSection.content;
 
-    const labelInput = document.createElement('input');
-    labelInput.type = 'text';
-    labelInput.placeholder = 'Enter label text...';
-    labelInput.style.width = '100%';
-    labelInput.style.padding = '10px';
-    labelInput.style.border = '1px solid var(--divider-color)';
-    labelInput.style.borderRadius = '6px';
-    labelInput.style.background = 'var(--card-background-color)';
-    labelInput.style.fontFamily = 'Courier New, monospace';
-    labelInput.style.margin = '8px 0';
-    labelInput.style.boxSizing = 'border-box';
-
-    const labelControls = document.createElement('div');
-    labelControls.style.display = 'grid';
-    labelControls.style.gridTemplateColumns = '1fr 1fr';
-    labelControls.style.gap = '8px';
-    labelControls.style.margin = '8px 0';
-
-    const labelSizeSelect = document.createElement('select');
-    labelSizeSelect.style.padding = '8px';
-    labelSizeSelect.style.border = '1px solid var(--divider-color)';
-    labelSizeSelect.style.borderRadius = '6px';
-    labelSizeSelect.style.background = 'var(--card-background-color)';
-    this.addOptions(labelSizeSelect, [
-      { value: 'S', text: 'Small Label' },
-      { value: 'M', text: 'Medium Label', selected: true },
-      { value: 'L', text: 'Large Label' }
-    ]);
-
-    const spacingSelect = document.createElement('select');
-    spacingSelect.style.padding = '8px';
-    spacingSelect.style.border = '1px solid var(--divider-color)';
-    spacingSelect.style.borderRadius = '6px';
-    spacingSelect.style.background = 'var(--card-background-color)';
-    this.addOptions(spacingSelect, [
-      { value: '1', text: 'Normal Spacing', selected: true },
-      { value: '2', text: 'Loose Spacing' },
-      { value: '3', text: 'Extra Loose' }
-    ]);
-
-    labelControls.appendChild(labelSizeSelect);
-    labelControls.appendChild(spacingSelect);
-
-    const printLabelBtn = document.createElement('button');
-    printLabelBtn.innerHTML = '🏷️ Print Label';
-    printLabelBtn.style.background = 'var(--success-color)';
-    this.styleButton(printLabelBtn);
-
-    printLabelBtn.addEventListener('click', () => {
-      const text = labelInput.value;
-      if (!text.trim()) {
-        alert('Please enter label text');
-        return;
-      }
-      
-      this.callService('print_rotated_text', {
-        message: text,
-        rotation: 1,
-        size: labelSizeSelect.value
-      });
-    });
-
-    const labelInfo = document.createElement('div');
-    labelInfo.innerHTML = '💡 Prints rotated characters vertically down the roll - perfect for labels!';
-    labelInfo.style.fontSize = '12px';
-    labelInfo.style.color = 'var(--secondary-text-color)';
-    labelInfo.style.margin = '8px 0';
-    labelInfo.style.padding = '8px';
-    labelInfo.style.background = 'var(--secondary-background-color)';
-    labelInfo.style.borderRadius = '4px';
-
-    labelContent.appendChild(labelInput);
-    labelContent.appendChild(labelControls);
-    labelContent.appendChild(printLabelBtn);
-    labelContent.appendChild(labelInfo);
 
     // QR Code Section
     const qrSection = this.createCollapsibleSection('📱 QR Code Printing');
@@ -658,7 +580,6 @@ class ThermalPrinterCard extends HTMLElement {
     content.appendChild(textSection.section);
     content.appendChild(twoColSection.section);
     content.appendChild(threeColSection.section);
-    content.appendChild(labelSection.section);
     content.appendChild(qrSection.section);
     content.appendChild(barcodeSection.section);
 
@@ -676,9 +597,6 @@ class ThermalPrinterCard extends HTMLElement {
     });
     threeColSection.toggle.addEventListener('click', () => {
       this.toggleSection(threeColSection);
-    });
-    labelSection.toggle.addEventListener('click', () => {
-      this.toggleSection(labelSection);
     });
     qrSection.toggle.addEventListener('click', () => {
       this.toggleSection(qrSection);
