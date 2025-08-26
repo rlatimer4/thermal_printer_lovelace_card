@@ -1,4 +1,17 @@
-class ThermalPrinterCard extends HTMLElement {
+const resetBtn = this.createButton('🔄 Reset Usage', function() {
+      if (confirm('Reset paper usage counters?')) {
+        this.callService('reset_paper_usage');
+      }
+    }.bind(this));
+    
+    const testRotateBtn = this.createButton('🔄 Test Rotation', function() {
+      this.callService('test_rotation');
+    }.bind(this));
+
+    actionsRow2.appendChild(feedBtn);
+    actionsRow2.appendChild(separatorBtn);
+    actionsRow2.appendChild(resetBtn);
+    actionsRow2.appendChild(testRotateBtn);class ThermalPrinterCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -584,9 +597,16 @@ class ThermalPrinterCard extends HTMLElement {
     labelControls.appendChild(spacingSelect);
 
     const printLabelBtn = document.createElement('button');
-    printLabelBtn.innerHTML = '🏷️ Print Label';
+    printLabelBtn.innerHTML = '🏷️ Print Label (Rotated)';
     printLabelBtn.style.background = 'var(--success-color)';
     this.styleButton(printLabelBtn);
+
+    // Add alternative label button
+    const printVerticalBtn = document.createElement('button');
+    printVerticalBtn.innerHTML = '📝 Print Vertical (No Rotation)';
+    printVerticalBtn.style.background = 'var(--warning-color)';
+    printVerticalBtn.style.margin = '4px 0';
+    this.styleButton(printVerticalBtn);
 
     printLabelBtn.addEventListener('click', function() {
       const text = labelInput.value;
@@ -595,6 +615,8 @@ class ThermalPrinterCard extends HTMLElement {
         return;
       }
       
+      console.log('Printing rotated label:', text, 'length:', text.length);
+      
       self.callService('print_label_text', {
         message: text,
         size: labelSizeSelect.value,
@@ -602,18 +624,41 @@ class ThermalPrinterCard extends HTMLElement {
       });
     });
 
+    // Alternative vertical printing without rotation
+    printVerticalBtn.addEventListener('click', function() {
+      const text = labelInput.value;
+      if (!text.trim()) {
+        alert('Please enter label text');
+        return;
+      }
+      
+      console.log('Printing vertical label:', text, 'length:', text.length);
+      
+      self.callService('print_vertical_text', {
+        message: text,
+        spacing: parseInt(spacingSelect.value)
+      });
+    });
+
     const labelInfo = document.createElement('div');
-    labelInfo.innerHTML = '💡 Prints rotated characters vertically down the roll - perfect for labels!';
+    labelInfo.innerHTML = `
+      💡 <strong>Label Options:</strong><br>
+      🏷️ <strong>Rotated:</strong> Uses ESC V rotation (if supported)<br>
+      📝 <strong>Vertical:</strong> Characters on separate lines<br>
+      <em>Try both to see which works better with your printer!</em>
+    `;
     labelInfo.style.fontSize = '12px';
     labelInfo.style.color = 'var(--secondary-text-color)';
     labelInfo.style.margin = '8px 0';
     labelInfo.style.padding = '8px';
     labelInfo.style.background = 'var(--secondary-background-color)';
     labelInfo.style.borderRadius = '4px';
+    labelInfo.style.lineHeight = '1.4';
 
     labelContent.appendChild(labelInput);
     labelContent.appendChild(labelControls);
     labelContent.appendChild(printLabelBtn);
+    labelContent.appendChild(printVerticalBtn);
     labelContent.appendChild(labelInfo);
 
     // QR Code Section
