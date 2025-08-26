@@ -843,24 +843,68 @@ class ThermalPrinterCard extends HTMLElement {
     
     if (!this._config || !this._config.entity) return;
 
-    // Update status
+    // Update printer status with DTR awareness
     const statusText = this.shadowRoot.getElementById('status-text');
     const statusDot = this.shadowRoot.getElementById('status-dot');
-    const entity = hass.states[this._config.entity];
     
-    if (statusText && entity) {
-      const isOnline = entity.state === 'on';
-      statusText.innerHTML = isOnline ? 'Printer Ready' : 'Printer Offline';
+    // Check multiple status sources
+    const printerEntity = hass.states[this._config.entity];
+    const dtrEntity = hass.states[this._config.dtr_sensor] || 
+                     hass.states['binary_sensor.thermal_printer_dtr_handshaking'];
+    const paperEntity = hass.states[this._config.paper_sensor] || 
+                       hass.states['binary_sensor.thermal_printer_paper_loaded'];
+    const printerStatusEntity = hass.states[this._config.printer_status_sensor] || 
+                               hass.states['text_sensor.thermal_printer_printer_status'];
+    
+    if (statusText && statusDot) {
+      let statusMessage = 'Unknown';
+      let statusColor = 'var(--warning-color)';
       
-      if (statusDot) {
-        statusDot.style.background = isOnline ? 'var(--success-color)' : 'var(--error-color)';
+      // Use enhanced printer status if available
+      if (printerStatusEntity && printerStatusEntity.state) {
+        statusMessage = printerStatusEntity.state;
+        
+        // Color coding based on status
+        if (statusMessage.includes('Ready') && statusMessage.includes('DTR Enabled')) {
+          statusColor = 'var(--success-color)';
+        } else if (statusMessage.includes('Paper Out')) {
+          statusColor = 'var(--error-color)';
+        } else if (statusMessage.includes('No DTR')) {
+          statusColor = 'var(--warning-color)';
+        } else if (statusMessage.includes('Ready')) {
+          statusColor = 'var(--success-color)';
+        }
+      } else {
+        // Fallback to basic status logic
+        const printerOn = printerEntity && printerEntity.state === 'on';
+        const dtrEnabled = dtrEntity && dtrEntity.state === 'on';
+        const paperLoaded = paperEntity ? paperEntity.state === 'on' : true;
+        
+        if (printerOn && paperLoaded) {
+          if (dtrEnabled) {
+            statusMessage = 'Ready - DTR Enabled';
+            statusColor = 'var(--success-color)';
+          } else {
+            statusMessage = 'Ready - No DTR';
+            statusColor = 'var(--warning-color)';
+          }
+        } else if (printerOn && !paperLoaded) {
+          statusMessage = 'Paper Out';
+          statusColor = 'var(--error-color)';
+        } else {
+          statusMessage = 'Printer Offline';
+          statusColor = 'var(--error-color)';
+        }
       }
+      
+      statusText.innerHTML = statusMessage;
+      statusDot.style.background = statusColor;
     }
 
-    // Update paper usage if sensors exist
+    // Update paper usage with enhanced sensors
     const usageSensor = hass.states[this._config.usage_sensor] || 
                        hass.states['sensor.thermal_printer_paper_usage_percent'];
-    if (usageSensor) {
+    if (usageSensor && usageSensor.state !== 'unknown' && usageSensor.state !== 'unavailable') {
       const usageFill = this.shadowRoot.getElementById('usage-fill');
       const usageText = this.shadowRoot.getElementById('usage-text');
       const percentage = parseFloat(usageSensor.state) || 0;
@@ -876,7 +920,7 @@ class ThermalPrinterCard extends HTMLElement {
     // Update usage in mm
     const usageMmSensor = hass.states[this._config.usage_mm_sensor] || 
                          hass.states['sensor.thermal_printer_paper_usage_mm'];
-    if (usageMmSensor) {
+    if (usageMmSensor && usageMmSensor.state !== 'unknown' && usageMmSensor.state !== 'unavailable') {
       const usageMm = this.shadowRoot.getElementById('usage-mm');
       if (usageMm) {
         usageMm.innerHTML = parseFloat(usageMmSensor.state).toFixed(1);
@@ -886,11 +930,26 @@ class ThermalPrinterCard extends HTMLElement {
     // Update lines printed
     const linesSensor = hass.states[this._config.lines_sensor] || 
                        hass.states['sensor.thermal_printer_lines_printed'];
-    if (linesSensor) {
+    if (linesSensor && linesSensor.state !== 'unknown' && linesSensor.state !== 'unavailable') {
       const linesPrinted = this.shadowRoot.getElementById('lines-printed');
       if (linesPrinted) {
         linesPrinted.innerHTML = linesSensor.state;
       }
+    }
+
+    // Update DTR statistics if available
+    const dtrTimeoutsSensor = hass.states[this._config.dtr_timeouts_sensor] || 
+                             hass.states['sensor.thermal_printer_dtr_timeouts'];
+    if (dtrTimeoutsSensor && dtrTimeoutsSensor.state !== 'unknown') {
+      // Could add DTR timeout display if needed
+      console.debug('DTR Timeouts:', dtrTimeoutsSensor.state);
+    }
+
+    const successRateSensor = hass.states[this._config.success_rate_sensor] || 
+                             hass.states['sensor.thermal_printer_print_success_rate'];
+    if (successRateSensor && successRateSensor.state !== 'unknown') {
+      // Could add success rate display if needed  
+      console.debug('Print Success Rate:', successRateSensor.state + '%');
     }
   }
 
