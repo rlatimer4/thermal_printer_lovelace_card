@@ -18,7 +18,7 @@ class ThermalPrinterCard extends HTMLElement {
     const content = document.createElement('div');
     content.style.padding = '16px';
 
-    // Printer Status Section
+    // Printer Status Section (same as before)
     const statusDiv = document.createElement('div');
     statusDiv.style.display = 'flex';
     statusDiv.style.justifyContent = 'space-between';
@@ -60,7 +60,7 @@ class ThermalPrinterCard extends HTMLElement {
     statusDiv.appendChild(statusIndicator);
     statusDiv.appendChild(refreshBtn);
 
-    // Paper Usage Section
+    // Paper Usage Section (same as before)
     const usageSection = document.createElement('div');
     usageSection.style.margin = '16px 0';
     usageSection.style.padding = '12px';
@@ -142,31 +142,63 @@ class ThermalPrinterCard extends HTMLElement {
     actionsRow2.style.margin = '8px 0';
     actionsRow2.style.flexWrap = 'wrap';
 
-    const feedBtn = this.createButton('📄 Feed Paper', () => { 
+    const feedBtn = this.createButton('📄 Feed Paper', function() { 
       this.callService('feed_paper', { lines: 3 });
-    });
-    const separatorBtn = this.createButton('➖ Separator', () => {
-      this.callService('print_text', {
-        message: '================================',
-        text_size: 'S',
-        alignment: 'C',
-        bold: false,
-        underline: false,
-        inverse: false,
-        rotation: 0
-      });
-    });
-    const resetBtn = this.createButton('🔄 Reset Usage', () => {
+    }.bind(this));
+    const resetBtn = this.createButton('🔄 Reset Usage', function() {
       if (confirm('Reset paper usage counters?')) {
         this.callService('reset_paper_usage');
       }
-    });
+    }.bind(this));
 
     actionsRow2.appendChild(feedBtn);
-    actionsRow2.appendChild(separatorBtn);
     actionsRow2.appendChild(resetBtn);
 
-    // Text Printing Section
+    // NEW: Todo List Quick Actions
+    const todoActionsTitle = document.createElement('div');
+    todoActionsTitle.innerHTML = '✅ Todo Lists';
+    todoActionsTitle.style.fontWeight = 'bold';
+    todoActionsTitle.style.margin = '16px 0 8px 0';
+
+    const todoActionsRow = document.createElement('div');
+    todoActionsRow.style.display = 'flex';
+    todoActionsRow.style.gap = '8px';
+    todoActionsRow.style.margin = '8px 0';
+    todoActionsRow.style.flexWrap = 'wrap';
+
+    // Shopping List Button
+    const shoppingBtn = this.createButton('🛒 Shopping List', function() {
+      this.callScript('print_shopping_list', {
+        entity_id: 'todo.shopping_list',
+        store_name: 'Grocery Store',
+        budget: '$100'
+      });
+    }.bind(this));
+    shoppingBtn.style.background = 'var(--success-color)';
+
+    // Daily Todo Button  
+    const dailyTodoBtn = this.createButton('📝 Daily Todo', function() {
+      this.callScript('print_todo_list', {
+        entity_id: 'todo.daily_tasks',
+        list_title: "Today's Tasks",
+        compact_format: false
+      });
+    }.bind(this));
+    dailyTodoBtn.style.background = 'var(--info-color)';
+
+    // Weekly Planner Button
+    const weeklyBtn = this.createButton('📅 Weekly Plan', function() {
+      this.callScript('print_weekly_planner', {
+        week_title: 'This Week'
+      });
+    }.bind(this));
+    weeklyBtn.style.background = 'var(--warning-color)';
+
+    todoActionsRow.appendChild(shoppingBtn);
+    todoActionsRow.appendChild(dailyTodoBtn);
+    todoActionsRow.appendChild(weeklyBtn);
+
+    // Text Printing Section (collapsible)
     const textSection = this.createCollapsibleSection('📝 Text Printing');
     const textContent = textSection.content;
 
@@ -214,312 +246,181 @@ class ThermalPrinterCard extends HTMLElement {
     const boldCheck = this.createCheckbox('Bold');
     const underlineCheck = this.createCheckbox('Underline');
     const inverseCheck = this.createCheckbox('Inverse');
-    const rotateCheck = this.createCheckbox('90° Rotate');
 
     formatControls.appendChild(sizeSelect);
     formatControls.appendChild(alignSelect);
     formatControls.appendChild(boldCheck);
     formatControls.appendChild(underlineCheck);
     formatControls.appendChild(inverseCheck);
-    formatControls.appendChild(rotateCheck);
 
     const printTextBtn = document.createElement('button');
     printTextBtn.innerHTML = '🖨️ Print Text';
-    printTextBtn.className = 'control-button';
     this.styleButton(printTextBtn);
 
-    printTextBtn.addEventListener('click', () => {
+    const self = this;
+    printTextBtn.addEventListener('click', function() {
       const text = textInput.value;
       if (!text.trim()) {
         alert('Please enter some text to print');
         return;
       }
 
-      if (rotateCheck.checked) {
-        this.callService('print_rotated_text', {
-          message: text,
-          rotation: 1,
-          size: sizeSelect.value
-        });
-      } else {
-        this.callService('print_text', {
-          message: text,
-          text_size: sizeSelect.value,
-          alignment: alignSelect.value,
-          bold: boldCheck.checked,
-          underline: underlineCheck.checked,
-          inverse: inverseCheck.checked,
-          rotation: 0
-        });
-      }
+      self.callService('print_text', {
+        message: text,
+        text_size: sizeSelect.value,
+        alignment: alignSelect.value,
+        bold: boldCheck.checked,
+        underline: underlineCheck.checked,
+        inverse: inverseCheck.checked
+      });
     });
 
     textContent.appendChild(textInput);
     textContent.appendChild(formatControls);
     textContent.appendChild(printTextBtn);
 
-    // Two-Column Printing Section
-    const twoColSection = this.createCollapsibleSection('📊 Two-Column Printing');
-    const twoColContent = twoColSection.content;
+    // Todo List Creation Section
+    const todoSection = this.createCollapsibleSection('✅ Create Quick Todo');
+    const todoContent = todoSection.content;
 
-    const twoColContainer = document.createElement('div');
-    twoColContainer.style.display = 'grid';
-    twoColContainer.style.gridTemplateColumns = '1fr 1fr';
-    twoColContainer.style.gap = '12px';
-    twoColContainer.style.margin = '12px 0';
+    const todoTitleInput = document.createElement('input');
+    todoTitleInput.type = 'text';
+    todoTitleInput.placeholder = 'Todo list title (e.g., "Today\'s Tasks")';
+    todoTitleInput.style.width = '100%';
+    todoTitleInput.style.padding = '10px';
+    todoTitleInput.style.border = '1px solid var(--divider-color)';
+    todoTitleInput.style.borderRadius = '6px';
+    todoTitleInput.style.margin = '8px 0';
+    todoTitleInput.style.boxSizing = 'border-box';
+    todoTitleInput.value = "Today's Tasks";
 
-    const leftColInput = document.createElement('input');
-    leftColInput.type = 'text';
-    leftColInput.placeholder = 'Left column text';
-    leftColInput.style.width = '100%';
-    leftColInput.style.padding = '10px';
-    leftColInput.style.border = '1px solid var(--divider-color)';
-    leftColInput.style.borderRadius = '6px';
-    leftColInput.style.fontFamily = 'Courier New, monospace';
-    leftColInput.style.boxSizing = 'border-box';
+    const todoItemsContainer = document.createElement('div');
+    todoItemsContainer.style.margin = '12px 0';
 
-    const rightColInput = document.createElement('input');
-    rightColInput.type = 'text';
-    rightColInput.placeholder = 'Right column text';
-    rightColInput.style.width = '100%';
-    rightColInput.style.padding = '10px';
-    rightColInput.style.border = '1px solid var(--divider-color)';
-    rightColInput.style.borderRadius = '6px';
-    rightColInput.style.fontFamily = 'Courier New, monospace';
-    rightColInput.style.boxSizing = 'border-box';
+    // Create 6 todo item inputs
+    const todoInputs = [];
+    for (let i = 1; i <= 6; i++) {
+      const itemInput = document.createElement('input');
+      itemInput.type = 'text';
+      itemInput.placeholder = `Todo item ${i}`;
+      itemInput.style.width = '100%';
+      itemInput.style.padding = '8px';
+      itemInput.style.border = '1px solid var(--divider-color)';
+      itemInput.style.borderRadius = '6px';
+      itemInput.style.margin = '4px 0';
+      itemInput.style.boxSizing = 'border-box';
+      todoItemsContainer.appendChild(itemInput);
+      todoInputs.push(itemInput);
+    }
 
-    twoColContainer.appendChild(leftColInput);
-    twoColContainer.appendChild(rightColInput);
+    const printQuickTodoBtn = document.createElement('button');
+    printQuickTodoBtn.innerHTML = '✅ Print Quick Todo';
+    printQuickTodoBtn.style.background = 'var(--success-color)';
+    this.styleButton(printQuickTodoBtn);
 
-    const twoColControls = document.createElement('div');
-    twoColControls.style.display = 'grid';
-    twoColControls.style.gridTemplateColumns = '1fr 1fr';
-    twoColControls.style.gap = '8px';
-    twoColControls.style.margin = '8px 0';
-
-    const twoColSizeSelect = document.createElement('select');
-    twoColSizeSelect.style.padding = '8px';
-    twoColSizeSelect.style.border = '1px solid var(--divider-color)';
-    twoColSizeSelect.style.borderRadius = '6px';
-    this.addOptions(twoColSizeSelect, [
-      { value: 'S', text: 'Small (32 chars)', selected: true },
-      { value: 'M', text: 'Medium (24 chars)' },
-      { value: 'L', text: 'Large (16 chars)' }
-    ]);
-
-    const fillDotsCheck = this.createCheckbox('Fill with dots');
-    fillDotsCheck.checked = true;
-
-    twoColControls.appendChild(twoColSizeSelect);
-    twoColControls.appendChild(fillDotsCheck);
-
-    const printTwoColBtn = document.createElement('button');
-    printTwoColBtn.innerHTML = '📊 Print Two Columns';
-    this.styleButton(printTwoColBtn);
-
-    printTwoColBtn.addEventListener('click', () => {
-      const leftText = leftColInput.value;
-      const rightText = rightColInput.value;
+    printQuickTodoBtn.addEventListener('click', function() {
+      const title = todoTitleInput.value || "Quick Todo";
+      const items = todoInputs.map(input => input.value).filter(value => value.trim());
       
-      if (!leftText.trim() && !rightText.trim()) {
-        alert('Please enter text for at least one column');
+      if (items.length === 0) {
+        alert('Please enter at least one todo item');
         return;
       }
+
+      const data = {
+        title: title,
+        item1: items[0] || '',
+        item2: items[1] || '',
+        item3: items[2] || '',
+        item4: items[3] || '',
+        item5: items[4] || '',
+        item6: items[5] || ''
+      };
+
+      self.callService('print_quick_todo', data);
+    });
+
+    todoContent.appendChild(todoTitleInput);
+    todoContent.appendChild(todoItemsContainer);
+    todoContent.appendChild(printQuickTodoBtn);
+
+    // Shopping List Creator Section
+    const shoppingSection = this.createCollapsibleSection('🛒 Create Shopping List');
+    const shoppingContent = shoppingSection.content;
+
+    const storeInput = document.createElement('input');
+    storeInput.type = 'text';
+    storeInput.placeholder = 'Store name (e.g., "Walmart")';
+    storeInput.style.width = '100%';
+    storeInput.style.padding = '10px';
+    storeInput.style.border = '1px solid var(--divider-color)';
+    storeInput.style.borderRadius = '6px';
+    storeInput.style.margin = '8px 0';
+    storeInput.style.boxSizing = 'border-box';
+
+    const budgetInput = document.createElement('input');
+    budgetInput.type = 'text';
+    budgetInput.placeholder = 'Budget (e.g., "$150")';
+    budgetInput.style.width = '100%';
+    budgetInput.style.padding = '10px';
+    budgetInput.style.border = '1px solid var(--divider-color)';
+    budgetInput.style.borderRadius = '6px';
+    budgetInput.style.margin = '8px 0';
+    budgetInput.style.boxSizing = 'border-box';
+
+    const shoppingItemsArea = document.createElement('textarea');
+    shoppingItemsArea.placeholder = 'Shopping items (one per line):\nMilk\nBread\nEggs\nApples';
+    shoppingItemsArea.style.width = '100%';
+    shoppingItemsArea.style.minHeight = '100px';
+    shoppingItemsArea.style.padding = '10px';
+    shoppingItemsArea.style.border = '1px solid var(--divider-color)';
+    shoppingItemsArea.style.borderRadius = '6px';
+    shoppingItemsArea.style.resize = 'vertical';
+    shoppingItemsArea.style.margin = '8px 0';
+    shoppingItemsArea.style.boxSizing = 'border-box';
+
+    const printShoppingBtn = document.createElement('button');
+    printShoppingBtn.innerHTML = '🛒 Print Shopping List';
+    printShoppingBtn.style.background = 'var(--success-color)';
+    this.styleButton(printShoppingBtn);
+
+    printShoppingBtn.addEventListener('click', function() {
+      const items = shoppingItemsArea.value.split('\n')
+        .map(item => item.trim())
+        .filter(item => item.length > 0)
+        .join('|');
       
-      this.callService('print_two_column', {
-        left_text: leftText,
-        right_text: rightText,
-        fill_dots: fillDotsCheck.checked,
-        text_size: twoColSizeSelect.value
+      if (!items) {
+        alert('Please enter at least one shopping item');
+        return;
+      }
+
+      self.callService('print_shopping_list', {
+        store_name: storeInput.value,
+        items: items,
+        budget: budgetInput.value,
+        categories: ''
       });
     });
 
-    const twoColExample = document.createElement('div');
-    twoColExample.innerHTML = '💡 Perfect for receipts: "Coffee..................$3.50"';
-    twoColExample.style.fontSize = '12px';
-    twoColExample.style.color = 'var(--secondary-text-color)';
-    twoColExample.style.margin = '8px 0';
-    twoColExample.style.padding = '8px';
-    twoColExample.style.background = 'var(--secondary-background-color)';
-    twoColExample.style.borderRadius = '4px';
-    twoColExample.style.fontFamily = 'monospace';
+    shoppingContent.appendChild(storeInput);
+    shoppingContent.appendChild(budgetInput);
+    shoppingContent.appendChild(shoppingItemsArea);
+    shoppingContent.appendChild(printShoppingBtn);
 
-    twoColContent.appendChild(twoColContainer);
-    twoColContent.appendChild(twoColControls);
-    twoColContent.appendChild(printTwoColBtn);
-    twoColContent.appendChild(twoColExample);
-
-    // Three-Column Table Section
-    const threeColSection = this.createCollapsibleSection('📋 Three-Column Table');
-    const threeColContent = threeColSection.content;
-
-    const threeColContainer = document.createElement('div');
-    threeColContainer.style.display = 'grid';
-    threeColContainer.style.gridTemplateColumns = '1fr 1fr 1fr';
-    threeColContainer.style.gap = '8px';
-    threeColContainer.style.margin = '12px 0';
-
-    const col1Input = document.createElement('input');
-    col1Input.type = 'text';
-    col1Input.placeholder = 'Column 1';
-    col1Input.style.width = '100%';
-    col1Input.style.padding = '8px';
-    col1Input.style.border = '1px solid var(--divider-color)';
-    col1Input.style.borderRadius = '6px';
-    col1Input.style.fontFamily = 'Courier New, monospace';
-    col1Input.style.fontSize = '12px';
-    col1Input.style.boxSizing = 'border-box';
-
-    const col2Input = document.createElement('input');
-    col2Input.type = 'text';
-    col2Input.placeholder = 'Column 2';
-    col2Input.style.width = '100%';
-    col2Input.style.padding = '8px';
-    col2Input.style.border = '1px solid var(--divider-color)';
-    col2Input.style.borderRadius = '6px';
-    col2Input.style.fontFamily = 'Courier New, monospace';
-    col2Input.style.fontSize = '12px';
-    col2Input.style.boxSizing = 'border-box';
-
-    const col3Input = document.createElement('input');
-    col3Input.type = 'text';
-    col3Input.placeholder = 'Column 3';
-    col3Input.style.width = '100%';
-    col3Input.style.padding = '8px';
-    col3Input.style.border = '1px solid var(--divider-color)';
-    col3Input.style.borderRadius = '6px';
-    col3Input.style.fontFamily = 'Courier New, monospace';
-    col3Input.style.fontSize = '12px';
-    col3Input.style.boxSizing = 'border-box';
-
-    threeColContainer.appendChild(col1Input);
-    threeColContainer.appendChild(col2Input);
-    threeColContainer.appendChild(col3Input);
-
-    const headerCheck = this.createCheckbox('Format as header row');
-    headerCheck.style.margin = '8px 0';
-
-    const printThreeColBtn = document.createElement('button');
-    printThreeColBtn.innerHTML = '📋 Print Table Row';
-    this.styleButton(printThreeColBtn);
-
-    printThreeColBtn.addEventListener('click', () => {
-      const col1 = col1Input.value;
-      const col2 = col2Input.value;
-      const col3 = col3Input.value;
-      
-      if (!col1.trim() && !col2.trim() && !col3.trim()) {
-        alert('Please enter text for at least one column');
-        return;
-      }
-      
-      this.callService('print_table_row', {
-        col1: col1,
-        col2: col2,
-        col3: col3,
-        header: headerCheck.checked
-      });
-    });
-
-    const threeColExample = document.createElement('div');
-    threeColExample.innerHTML = '💡 Perfect for tables: "Item      Qty       Price"';
-    threeColExample.style.fontSize = '12px';
-    threeColExample.style.color = 'var(--secondary-text-color)';
-    threeColExample.style.margin = '8px 0';
-    threeColExample.style.padding = '8px';
-    threeColExample.style.background = 'var(--secondary-background-color)';
-    threeColExample.style.borderRadius = '4px';
-    threeColExample.style.fontFamily = 'monospace';
-
-    threeColContent.appendChild(threeColContainer);
-    threeColContent.appendChild(headerCheck);
-    threeColContent.appendChild(printThreeColBtn);
-    threeColContent.appendChild(threeColExample);
-
-
-
-    // QR Code Section
-    const qrSection = this.createCollapsibleSection('📱 QR Code Printing');
-    const qrContent = qrSection.content;
-
-    const qrInput = document.createElement('input');
-    qrInput.type = 'text';
-    qrInput.placeholder = 'QR code data (URL, text, etc.)';
-    qrInput.style.width = '100%';
-    qrInput.style.padding = '8px';
-    qrInput.style.margin = '8px 0';
-    qrInput.style.border = '1px solid var(--divider-color)';
-    qrInput.style.borderRadius = '6px';
-    qrInput.style.boxSizing = 'border-box';
-
-    const qrLabelInput = document.createElement('input');
-    qrLabelInput.type = 'text';
-    qrLabelInput.placeholder = 'Optional label text';
-    qrLabelInput.style.width = '100%';
-    qrLabelInput.style.padding = '8px';
-    qrLabelInput.style.margin = '8px 0';
-    qrLabelInput.style.border = '1px solid var(--divider-color)';
-    qrLabelInput.style.borderRadius = '6px';
-    qrLabelInput.style.boxSizing = 'border-box';
-
-    const qrControls = document.createElement('div');
-    qrControls.style.display = 'grid';
-    qrControls.style.gridTemplateColumns = '1fr 1fr';
-    qrControls.style.gap = '8px';
-    qrControls.style.margin = '8px 0';
-
-    const qrSizeSelect = document.createElement('select');
-    qrSizeSelect.style.padding = '6px';
-    qrSizeSelect.style.border = '1px solid var(--divider-color)';
-    qrSizeSelect.style.borderRadius = '6px';
-    this.addOptions(qrSizeSelect, [
-      { value: '1', text: 'Small' },
-      { value: '2', text: 'Medium' },
-      { value: '3', text: 'Large', selected: true },
-      { value: '4', text: 'Extra Large' }
-    ]);
-
-    const qrErrorSelect = document.createElement('select');
-    qrErrorSelect.style.padding = '6px';
-    qrErrorSelect.style.border = '1px solid var(--divider-color)';
-    qrErrorSelect.style.borderRadius = '6px';
-    this.addOptions(qrErrorSelect, [
-      { value: '0', text: 'Low (7%)' },
-      { value: '1', text: 'Medium (15%)', selected: true },
-      { value: '2', text: 'High (25%)' },
-      { value: '3', text: 'Max (30%)' }
-    ]);
-
-    qrControls.appendChild(qrSizeSelect);
-    qrControls.appendChild(qrErrorSelect);
-
-    const printQrBtn = document.createElement('button');
-    printQrBtn.innerHTML = '📱 Print QR Code';
-    this.styleButton(printQrBtn);
-
-    printQrBtn.addEventListener('click', () => {
-      const data = qrInput.value;
-      if (!data.trim()) {
-        alert('Please enter QR code data');
-        return;
-      }
-      
-      this.callService('print_qr_code', {
-        data: data,
-        size: parseInt(qrSizeSelect.value),
-        error_correction: parseInt(qrErrorSelect.value),
-        label: qrLabelInput.value
-      });
-    });
-
-    qrContent.appendChild(qrInput);
-    qrContent.appendChild(qrLabelInput);
-    qrContent.appendChild(qrControls);
-    qrContent.appendChild(printQrBtn);
-
-    // Barcode Printing Section
+    // Barcode Printing Section (simplified)
     const barcodeSection = this.createCollapsibleSection('📱 Barcode Printing');
     const barcodeContent = barcodeSection.content;
+
+    const barcodeInput = document.createElement('input');
+    barcodeInput.type = 'text';
+    barcodeInput.placeholder = 'Barcode data (e.g., "123456789")';
+    barcodeInput.style.width = '100%';
+    barcodeInput.style.padding = '10px';
+    barcodeInput.style.margin = '8px 0';
+    barcodeInput.style.border = '1px solid var(--divider-color)';
+    barcodeInput.style.borderRadius = '6px';
+    barcodeInput.style.boxSizing = 'border-box';
 
     const barcodeTypeSelect = document.createElement('select');
     barcodeTypeSelect.style.width = '100%';
@@ -528,47 +429,31 @@ class ThermalPrinterCard extends HTMLElement {
     barcodeTypeSelect.style.border = '1px solid var(--divider-color)';
     barcodeTypeSelect.style.borderRadius = '6px';
     this.addOptions(barcodeTypeSelect, [
-      { value: '0', text: 'UPC-A (12 digits)' },
-      { value: '1', text: 'UPC-E (6-8 digits)' },
-      { value: '2', text: 'EAN13 (12-13 digits)' },
-      { value: '3', text: 'EAN8 (7-8 digits)' },
-      { value: '4', text: 'CODE39 (alphanumeric)' },
-      { value: '5', text: 'ITF (even digits)' },
-      { value: '6', text: 'CODABAR (numeric + special)' },
-      { value: '7', text: 'CODE93 (alphanumeric)' },
-      { value: '8', text: 'CODE128 (full ASCII)', selected: true }
+      { value: '8', text: 'CODE128 (recommended)', selected: true },
+      { value: '4', text: 'CODE39' },
+      { value: '2', text: 'EAN13' },
+      { value: '0', text: 'UPC-A' }
     ]);
-
-    const barcodeInput = document.createElement('input');
-    barcodeInput.type = 'text';
-    barcodeInput.placeholder = 'Barcode data';
-    barcodeInput.style.width = '100%';
-    barcodeInput.style.padding = '10px';
-    barcodeInput.style.margin = '8px 0';
-    barcodeInput.style.border = '1px solid var(--divider-color)';
-    barcodeInput.style.borderRadius = '6px';
-    barcodeInput.style.fontFamily = 'monospace';
-    barcodeInput.style.boxSizing = 'border-box';
 
     const printBarcodeBtn = document.createElement('button');
     printBarcodeBtn.innerHTML = '📱 Print Barcode';
     this.styleButton(printBarcodeBtn);
 
-    printBarcodeBtn.addEventListener('click', () => {
+    printBarcodeBtn.addEventListener('click', function() {
       const data = barcodeInput.value;
       if (!data.trim()) {
         alert('Please enter barcode data');
         return;
       }
       
-      this.callService('print_barcode', {
+      self.callService('print_barcode', {
         barcode_type: parseInt(barcodeTypeSelect.value),
         barcode_data: data
       });
     });
 
-    barcodeContent.appendChild(barcodeTypeSelect);
     barcodeContent.appendChild(barcodeInput);
+    barcodeContent.appendChild(barcodeTypeSelect);
     barcodeContent.appendChild(printBarcodeBtn);
 
     // Assembly
@@ -577,10 +462,11 @@ class ThermalPrinterCard extends HTMLElement {
     content.appendChild(actionsTitle);
     content.appendChild(actionsRow1);
     content.appendChild(actionsRow2);
+    content.appendChild(todoActionsTitle);
+    content.appendChild(todoActionsRow);
     content.appendChild(textSection.section);
-    content.appendChild(twoColSection.section);
-    content.appendChild(threeColSection.section);
-    content.appendChild(qrSection.section);
+    content.appendChild(todoSection.section);
+    content.appendChild(shoppingSection.section);
     content.appendChild(barcodeSection.section);
 
     card.appendChild(content);
@@ -588,21 +474,12 @@ class ThermalPrinterCard extends HTMLElement {
 
     this._config = config;
 
-    // Event listeners for all collapsible sections
-    textSection.toggle.addEventListener('click', () => {
-      this.toggleSection(textSection);
-    });
-    twoColSection.toggle.addEventListener('click', () => {
-      this.toggleSection(twoColSection);
-    });
-    threeColSection.toggle.addEventListener('click', () => {
-      this.toggleSection(threeColSection);
-    });
-    qrSection.toggle.addEventListener('click', () => {
-      this.toggleSection(qrSection);
-    });
-    barcodeSection.toggle.addEventListener('click', () => {
-      this.toggleSection(barcodeSection);
+    // Event listeners for collapsible sections
+    const sections = [textSection, todoSection, shoppingSection, barcodeSection];
+    sections.forEach(sectionObj => {
+      sectionObj.toggle.addEventListener('click', () => {
+        this.toggleSection(sectionObj);
+      });
     });
 
     refreshBtn.addEventListener('click', () => {
@@ -721,14 +598,10 @@ class ThermalPrinterCard extends HTMLElement {
     container.appendChild(checkbox);
     container.appendChild(labelText);
 
-    // Make the container behave like a checkbox
+    container.checked = checkbox.checked;
     Object.defineProperty(container, 'checked', {
       get: () => checkbox.checked,
       set: (value) => { checkbox.checked = value; }
-    });
-
-    container.addEventListener('change', () => {
-      // Forward the change event to the checkbox
     });
 
     return container;
@@ -741,7 +614,6 @@ class ThermalPrinterCard extends HTMLElement {
       const entityParts = this._config.entity.split('.');
       let deviceName = entityParts[1];
       
-      // Clean up device name
       deviceName = deviceName.replace(/_printer_wake$/, '');
       deviceName = deviceName.replace(/_wake$/, '');
       
@@ -756,138 +628,70 @@ class ThermalPrinterCard extends HTMLElement {
     }
   }
 
+  callScript(script, data) {
+    if (!data) data = {};
+    
+    try {
+      console.log('Calling script: script.' + script, data);
+      this._hass.callService('script', script, data);
+      
+    } catch (error) {
+      console.error('Script call failed:', error);
+      alert('Script call failed: ' + error.message);
+    }
+  }
+
   set hass(hass) {
     this._hass = hass;
     
     if (!this._config || !this._config.entity) return;
 
-    // Update printer status with DTR awareness
+    // Update status
     const statusText = this.shadowRoot.getElementById('status-text');
-    const statusDot = this.shadowRoot.getElementById('status-dot');
-    
-    // Check multiple status sources
-    const printerEntity = hass.states[this._config.entity];
-    const dtrEntity = hass.states[this._config.dtr_sensor] || 
-                     hass.states['binary_sensor.thermal_printer_dtr_handshaking'];
-    const paperEntity = hass.states[this._config.paper_sensor] || 
-                       hass.states['binary_sensor.thermal_printer_paper_loaded'];
-    const printerStatusEntity = hass.states[this._config.printer_status_sensor] || 
-                               hass.states['text_sensor.thermal_printer_printer_status'];
-    
-    if (statusText && statusDot) {
-      let statusMessage = 'Unknown';
-      let statusColor = 'var(--warning-color)';
-      
-      // Use enhanced printer status if available
-      if (printerStatusEntity && printerStatusEntity.state) {
-        statusMessage = printerStatusEntity.state;
-        
-        // Color coding based on status
-        if (statusMessage.includes('Ready') && statusMessage.includes('DTR Enabled')) {
-          statusColor = 'var(--success-color)';
-        } else if (statusMessage.includes('Paper Out')) {
-          statusColor = 'var(--error-color)';
-        } else if (statusMessage.includes('No DTR')) {
-          statusColor = 'var(--warning-color)';
-        } else if (statusMessage.includes('Ready')) {
-          statusColor = 'var(--success-color)';
-        }
-      } else {
-        // Fallback to basic status logic
-        const printerOn = printerEntity && printerEntity.state === 'on';
-        const dtrEnabled = dtrEntity && dtrEntity.state === 'on';
-        const paperLoaded = paperEntity ? paperEntity.state === 'on' : true;
-        
-        if (printerOn && paperLoaded) {
-          if (dtrEnabled) {
-            statusMessage = 'Ready - DTR Enabled';
-            statusColor = 'var(--success-color)';
-          } else {
-            statusMessage = 'Ready - No DTR';
-            statusColor = 'var(--warning-color)';
-          }
-        } else if (printerOn && !paperLoaded) {
-          statusMessage = 'Paper Out';
-          statusColor = 'var(--error-color)';
-        } else {
-          statusMessage = 'Printer Offline';
-          statusColor = 'var(--error-color)';
-        }
-      }
-      
-      statusText.innerHTML = statusMessage;
-      statusDot.style.background = statusColor;
+    const entity = hass.states[this._config.entity];
+    if (statusText && entity) {
+      statusText.innerHTML = entity.state === 'on' ? 'Ready' : 'Offline';
     }
 
-    // Update paper usage with enhanced sensors
-    const usageSensor = hass.states[this._config.usage_sensor] || 
-                       hass.states['sensor.thermal_printer_paper_usage_percent'];
-    if (usageSensor && usageSensor.state !== 'unknown' && usageSensor.state !== 'unavailable') {
+    // Update usage if sensors exist
+    const usageSensor = hass.states[this._config.usage_sensor] || hass.states['sensor.thermal_printer_paper_usage_percent'];
+    if (usageSensor) {
       const usageFill = this.shadowRoot.getElementById('usage-fill');
       const usageText = this.shadowRoot.getElementById('usage-text');
       const percentage = parseFloat(usageSensor.state) || 0;
       
-      if (usageFill) {
-        usageFill.style.width = Math.min(percentage, 100) + '%';
-      }
-      if (usageText) {
-        usageText.innerHTML = percentage.toFixed(1) + '%';
-      }
+      if (usageFill) usageFill.style.width = Math.min(percentage, 100) + '%';
+      if (usageText) usageText.innerHTML = percentage.toFixed(1) + '%';
     }
 
-    // Update usage in mm
-    const usageMmSensor = hass.states[this._config.usage_mm_sensor] || 
-                         hass.states['sensor.thermal_printer_paper_usage_mm'];
-    if (usageMmSensor && usageMmSensor.state !== 'unknown' && usageMmSensor.state !== 'unavailable') {
+    const usageMmSensor = hass.states[this._config.usage_mm_sensor] || hass.states['sensor.thermal_printer_paper_usage_mm'];
+    if (usageMmSensor) {
       const usageMm = this.shadowRoot.getElementById('usage-mm');
-      if (usageMm) {
-        usageMm.innerHTML = parseFloat(usageMmSensor.state).toFixed(1);
-      }
+      if (usageMm) usageMm.innerHTML = parseFloat(usageMmSensor.state).toFixed(1);
     }
 
-    // Update lines printed
-    const linesSensor = hass.states[this._config.lines_sensor] || 
-                       hass.states['sensor.thermal_printer_lines_printed'];
-    if (linesSensor && linesSensor.state !== 'unknown' && linesSensor.state !== 'unavailable') {
+    const linesSensor = hass.states[this._config.lines_sensor] || hass.states['sensor.thermal_printer_lines_printed'];
+    if (linesSensor) {
       const linesPrinted = this.shadowRoot.getElementById('lines-printed');
-      if (linesPrinted) {
-        linesPrinted.innerHTML = linesSensor.state;
-      }
-    }
-
-    // Update DTR statistics if available
-    const dtrTimeoutsSensor = hass.states[this._config.dtr_timeouts_sensor] || 
-                             hass.states['sensor.thermal_printer_dtr_timeouts'];
-    if (dtrTimeoutsSensor && dtrTimeoutsSensor.state !== 'unknown') {
-      // Could add DTR timeout display if needed
-      console.debug('DTR Timeouts:', dtrTimeoutsSensor.state);
-    }
-
-    const successRateSensor = hass.states[this._config.success_rate_sensor] || 
-                             hass.states['sensor.thermal_printer_print_success_rate'];
-    if (successRateSensor && successRateSensor.state !== 'unknown') {
-      // Could add success rate display if needed  
-      console.debug('Print Success Rate:', successRateSensor.state + '%');
+      if (linesPrinted) linesPrinted.innerHTML = linesSensor.state;
     }
   }
 
   getCardSize() {
-    return 8;
+    return 10;
   }
 }
 
-// Register the custom element
 customElements.define('thermal-printer-card', ThermalPrinterCard);
 
-// Register with custom cards list
 if (!window.customCards) {
   window.customCards = [];
 }
 
 window.customCards.push({
   type: 'thermal-printer-card',
-  name: 'Thermal Printer Card',
-  description: 'Complete thermal printer control with text, barcode, and QR code printing'
+  name: 'Thermal Printer Card with Todo Lists',
+  description: 'Complete thermal printer control with integrated todo list printing'
 });
 
-console.log('Thermal Printer Card loaded successfully!');
+console.log('Enhanced Thermal Printer Card with Todo Lists loaded successfully!');
