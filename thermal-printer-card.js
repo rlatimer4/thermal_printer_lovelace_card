@@ -13,12 +13,12 @@ class ThermalPrinterCard extends HTMLElement {
     root.innerHTML = '';
 
     const card = document.createElement('ha-card');
-    card.setAttribute('header', config.title || 'Thermal Printer');
+    card.setAttribute('header', config.title || 'Thermal Printer with Queue');
     
     const content = document.createElement('div');
     content.style.padding = '16px';
 
-    // Printer Status Section (same as before)
+    // Printer Status Section
     const statusDiv = document.createElement('div');
     statusDiv.style.display = 'flex';
     statusDiv.style.justifyContent = 'space-between';
@@ -60,7 +60,66 @@ class ThermalPrinterCard extends HTMLElement {
     statusDiv.appendChild(statusIndicator);
     statusDiv.appendChild(refreshBtn);
 
-    // Paper Usage Section (same as before)
+    // ===== NEW: QUEUE STATUS SECTION =====
+    const queueSection = document.createElement('div');
+    queueSection.style.margin = '16px 0';
+    queueSection.style.padding = '12px';
+    queueSection.style.background = 'var(--card-background-color)';
+    queueSection.style.border = '1px solid var(--divider-color)';
+    queueSection.style.borderRadius = '8px';
+
+    const queueTitle = document.createElement('div');
+    queueTitle.innerHTML = '📋 Print Queue Status';
+    queueTitle.style.fontWeight = 'bold';
+    queueTitle.style.marginBottom = '8px';
+
+    const queueInfo = document.createElement('div');
+    queueInfo.style.display = 'grid';
+    queueInfo.style.gridTemplateColumns = '1fr 1fr 1fr';
+    queueInfo.style.gap = '8px';
+    queueInfo.style.fontSize = '14px';
+    queueInfo.style.marginBottom = '8px';
+
+    const queueLength = document.createElement('div');
+    queueLength.innerHTML = 'Queue: <span id="queue-length" style="font-weight: bold;">0</span>';
+    queueLength.style.color = 'var(--secondary-text-color)';
+
+    const busyIndicator = document.createElement('div');
+    busyIndicator.innerHTML = '🔴 <span id="busy-status">Ready</span>';
+    busyIndicator.style.color = 'var(--secondary-text-color)';
+
+    const jobsProcessed = document.createElement('div');
+    jobsProcessed.innerHTML = 'Jobs: <span id="jobs-processed">0</span>';
+    jobsProcessed.style.color = 'var(--secondary-text-color)';
+
+    queueInfo.appendChild(queueLength);
+    queueInfo.appendChild(busyIndicator);
+    queueInfo.appendChild(jobsProcessed);
+
+    // Queue control buttons
+    const queueControls = document.createElement('div');
+    queueControls.style.display = 'flex';
+    queueControls.style.gap = '8px';
+    queueControls.style.margin = '8px 0';
+
+    const clearQueueBtn = this.createButton('🗑️ Clear Queue', function() {
+      if (confirm('Clear all queued print jobs?')) {
+        this.callService('clear_print_queue');
+      }
+    }.bind(this));
+
+    const queueStatsBtn = this.createButton('📊 Queue Stats', function() {
+      this.callService('queue_status_button');
+    }.bind(this));
+
+    queueControls.appendChild(clearQueueBtn);
+    queueControls.appendChild(queueStatsBtn);
+
+    queueSection.appendChild(queueTitle);
+    queueSection.appendChild(queueInfo);
+    queueSection.appendChild(queueControls);
+
+    // Paper Usage Section
     const usageSection = document.createElement('div');
     usageSection.style.margin = '16px 0';
     usageSection.style.padding = '12px';
@@ -142,68 +201,40 @@ class ThermalPrinterCard extends HTMLElement {
     actionsRow2.style.margin = '8px 0';
     actionsRow2.style.flexWrap = 'wrap';
 
-    const feedBtn = this.createButton('📄 Feed Paper', function() { 
-      this.callService('feed_paper', { lines: 3 });
+    const feedBtn = this.createButton('📄 Queue Feed', function() { 
+      this.callService('queue_feed_paper', { lines: 3, priority: 0 });
+      this.showQueueNotification('Paper feed queued');
     }.bind(this));
-    const resetBtn = this.createButton('🔄 Reset Usage', function() {
-      if (confirm('Reset paper usage counters?')) {
-        this.callService('reset_paper_usage');
+    
+    const separatorBtn = this.createButton('➖ Queue Separator', function() {
+      this.callService('queue_separator', { priority: 0 });
+      this.showQueueNotification('Separator queued');
+    }.bind(this));
+    
+    const emergencyBtn = this.createButton('🚨 Emergency', function() {
+      const message = prompt('Emergency message:');
+      if (message && message.trim()) {
+        this.callService('print_text_immediate', {
+          message: message,
+          text_size: 'L',
+          alignment: 'C',
+          bold: true
+        });
+        this.showQueueNotification('Emergency print sent!', 'error');
       }
     }.bind(this));
+    emergencyBtn.style.background = 'var(--error-color)';
 
     actionsRow2.appendChild(feedBtn);
-    actionsRow2.appendChild(resetBtn);
+    actionsRow2.appendChild(separatorBtn);
+    actionsRow2.appendChild(emergencyBtn);
 
-    // NEW: Todo List Quick Actions
-    const todoActionsTitle = document.createElement('div');
-    todoActionsTitle.innerHTML = '✅ Todo Lists';
-    todoActionsTitle.style.fontWeight = 'bold';
-    todoActionsTitle.style.margin = '16px 0 8px 0';
-
-    const todoActionsRow = document.createElement('div');
-    todoActionsRow.style.display = 'flex';
-    todoActionsRow.style.gap = '8px';
-    todoActionsRow.style.margin = '8px 0';
-    todoActionsRow.style.flexWrap = 'wrap';
-
-    // Shopping List Button
-    const shoppingBtn = this.createButton('🛒 Shopping List', function() {
-      this.callScript('print_shopping_list', {
-        entity_id: 'todo.shopping_list',
-        store_name: 'Grocery Store',
-        budget: '$100'
-      });
-    }.bind(this));
-    shoppingBtn.style.background = 'var(--success-color)';
-
-    // Daily Todo Button  
-    const dailyTodoBtn = this.createButton('📝 Daily Todo', function() {
-      this.callScript('print_todo_list', {
-        entity_id: 'todo.daily_tasks',
-        list_title: "Today's Tasks",
-        compact_format: false
-      });
-    }.bind(this));
-    dailyTodoBtn.style.background = 'var(--info-color)';
-
-    // Weekly Planner Button
-    const weeklyBtn = this.createButton('📅 Weekly Plan', function() {
-      this.callScript('print_weekly_planner', {
-        week_title: 'This Week'
-      });
-    }.bind(this));
-    weeklyBtn.style.background = 'var(--warning-color)';
-
-    todoActionsRow.appendChild(shoppingBtn);
-    todoActionsRow.appendChild(dailyTodoBtn);
-    todoActionsRow.appendChild(weeklyBtn);
-
-    // Text Printing Section (collapsible)
-    const textSection = this.createCollapsibleSection('📝 Text Printing');
+    // Text Printing Section (Modified for Queue)
+    const textSection = this.createCollapsibleSection('📝 Queue Text Printing');
     const textContent = textSection.content;
 
     const textInput = document.createElement('textarea');
-    textInput.placeholder = 'Enter text to print...';
+    textInput.placeholder = 'Enter text to queue for printing...';
     textInput.style.width = '100%';
     textInput.style.minHeight = '80px';
     textInput.style.padding = '12px';
@@ -246,16 +277,25 @@ class ThermalPrinterCard extends HTMLElement {
     const boldCheck = this.createCheckbox('Bold');
     const underlineCheck = this.createCheckbox('Underline');
     const inverseCheck = this.createCheckbox('Inverse');
+    const priorityCheck = this.createCheckbox('High Priority');
 
     formatControls.appendChild(sizeSelect);
     formatControls.appendChild(alignSelect);
     formatControls.appendChild(boldCheck);
     formatControls.appendChild(underlineCheck);
     formatControls.appendChild(inverseCheck);
+    formatControls.appendChild(priorityCheck);
 
     const printTextBtn = document.createElement('button');
-    printTextBtn.innerHTML = '🖨️ Print Text';
+    printTextBtn.innerHTML = '📋 Queue Text';
+    printTextBtn.className = 'control-button';
     this.styleButton(printTextBtn);
+
+    const printImmediateBtn = document.createElement('button');
+    printImmediateBtn.innerHTML = '⚡ Print Now';
+    printImmediateBtn.style.background = 'var(--warning-color)';
+    printImmediateBtn.style.margin = '4px 0';
+    this.styleButton(printImmediateBtn);
 
     const self = this;
     printTextBtn.addEventListener('click', function() {
@@ -265,162 +305,139 @@ class ThermalPrinterCard extends HTMLElement {
         return;
       }
 
-      self.callService('print_text', {
+      // Use queue service
+      self.callService('queue_print_text', {
         message: text,
         text_size: sizeSelect.value,
         alignment: alignSelect.value,
         bold: boldCheck.checked,
         underline: underlineCheck.checked,
-        inverse: inverseCheck.checked
+        inverse: inverseCheck.checked,
+        priority: priorityCheck.checked ? 1 : 0
       });
+      
+      // Clear the input after queuing
+      textInput.value = '';
+      
+      // Show confirmation
+      self.showQueueNotification('Text queued for printing');
+    });
+
+    printImmediateBtn.addEventListener('click', function() {
+      const text = textInput.value;
+      if (!text.trim()) {
+        alert('Please enter some text to print');
+        return;
+      }
+
+      // Use immediate service
+      self.callService('print_text_immediate', {
+        message: text,
+        text_size: sizeSelect.value,
+        alignment: alignSelect.value,
+        bold: boldCheck.checked
+      });
+      
+      textInput.value = '';
+      self.showQueueNotification('Text printed immediately!', 'warning');
     });
 
     textContent.appendChild(textInput);
     textContent.appendChild(formatControls);
     textContent.appendChild(printTextBtn);
+    textContent.appendChild(printImmediateBtn);
 
-    // Todo List Creation Section
-    const todoSection = this.createCollapsibleSection('✅ Create Quick Todo');
-    const todoContent = todoSection.content;
+    // Two-Column Section (Modified for Queue)
+    const twoColSection = this.createCollapsibleSection('📊 Queue Two-Column');
+    const twoColContent = twoColSection.content;
 
-    const todoTitleInput = document.createElement('input');
-    todoTitleInput.type = 'text';
-    todoTitleInput.placeholder = 'Todo list title (e.g., "Today\'s Tasks")';
-    todoTitleInput.style.width = '100%';
-    todoTitleInput.style.padding = '10px';
-    todoTitleInput.style.border = '1px solid var(--divider-color)';
-    todoTitleInput.style.borderRadius = '6px';
-    todoTitleInput.style.margin = '8px 0';
-    todoTitleInput.style.boxSizing = 'border-box';
-    todoTitleInput.value = "Today's Tasks";
+    const twoColContainer = document.createElement('div');
+    twoColContainer.style.display = 'grid';
+    twoColContainer.style.gridTemplateColumns = '1fr 1fr';
+    twoColContainer.style.gap = '12px';
+    twoColContainer.style.margin = '12px 0';
 
-    const todoItemsContainer = document.createElement('div');
-    todoItemsContainer.style.margin = '12px 0';
+    const leftColInput = document.createElement('input');
+    leftColInput.type = 'text';
+    leftColInput.placeholder = 'Left column text';
+    leftColInput.style.width = '100%';
+    leftColInput.style.padding = '10px';
+    leftColInput.style.border = '1px solid var(--divider-color)';
+    leftColInput.style.borderRadius = '6px';
+    leftColInput.style.fontFamily = 'Courier New, monospace';
+    leftColInput.style.boxSizing = 'border-box';
 
-    // Create 6 todo item inputs
-    const todoInputs = [];
-    for (let i = 1; i <= 6; i++) {
-      const itemInput = document.createElement('input');
-      itemInput.type = 'text';
-      itemInput.placeholder = `Todo item ${i}`;
-      itemInput.style.width = '100%';
-      itemInput.style.padding = '8px';
-      itemInput.style.border = '1px solid var(--divider-color)';
-      itemInput.style.borderRadius = '6px';
-      itemInput.style.margin = '4px 0';
-      itemInput.style.boxSizing = 'border-box';
-      todoItemsContainer.appendChild(itemInput);
-      todoInputs.push(itemInput);
-    }
+    const rightColInput = document.createElement('input');
+    rightColInput.type = 'text';
+    rightColInput.placeholder = 'Right column text';
+    rightColInput.style.width = '100%';
+    rightColInput.style.padding = '10px';
+    rightColInput.style.border = '1px solid var(--divider-color)';
+    rightColInput.style.borderRadius = '6px';
+    rightColInput.style.fontFamily = 'Courier New, monospace';
+    rightColInput.style.boxSizing = 'border-box';
 
-    const printQuickTodoBtn = document.createElement('button');
-    printQuickTodoBtn.innerHTML = '✅ Print Quick Todo';
-    printQuickTodoBtn.style.background = 'var(--success-color)';
-    this.styleButton(printQuickTodoBtn);
+    twoColContainer.appendChild(leftColInput);
+    twoColContainer.appendChild(rightColInput);
 
-    printQuickTodoBtn.addEventListener('click', function() {
-      const title = todoTitleInput.value || "Quick Todo";
-      const items = todoInputs.map(input => input.value).filter(value => value.trim());
+    const twoColControls = document.createElement('div');
+    twoColControls.style.display = 'grid';
+    twoColControls.style.gridTemplateColumns = '1fr 1fr 1fr';
+    twoColControls.style.gap = '8px';
+    twoColControls.style.margin = '8px 0';
+
+    const twoColSizeSelect = document.createElement('select');
+    twoColSizeSelect.style.padding = '8px';
+    twoColSizeSelect.style.border = '1px solid var(--divider-color)';
+    twoColSizeSelect.style.borderRadius = '6px';
+    this.addOptions(twoColSizeSelect, [
+      { value: 'S', text: 'Small', selected: true },
+      { value: 'M', text: 'Medium' },
+      { value: 'L', text: 'Large' }
+    ]);
+
+    const fillDotsCheck = this.createCheckbox('Fill dots');
+    fillDotsCheck.checked = true;
+
+    const twoColPriorityCheck = this.createCheckbox('Priority');
+
+    twoColControls.appendChild(twoColSizeSelect);
+    twoColControls.appendChild(fillDotsCheck);
+    twoColControls.appendChild(twoColPriorityCheck);
+
+    const printTwoColBtn = document.createElement('button');
+    printTwoColBtn.innerHTML = '📊 Queue Two Columns';
+    this.styleButton(printTwoColBtn);
+
+    printTwoColBtn.addEventListener('click', function() {
+      const leftText = leftColInput.value;
+      const rightText = rightColInput.value;
       
-      if (items.length === 0) {
-        alert('Please enter at least one todo item');
+      if (!leftText.trim() && !rightText.trim()) {
+        alert('Please enter text for at least one column');
         return;
       }
-
-      const data = {
-        title: title,
-        item1: items[0] || '',
-        item2: items[1] || '',
-        item3: items[2] || '',
-        item4: items[3] || '',
-        item5: items[4] || '',
-        item6: items[5] || ''
-      };
-
-      self.callService('print_quick_todo', data);
-    });
-
-    todoContent.appendChild(todoTitleInput);
-    todoContent.appendChild(todoItemsContainer);
-    todoContent.appendChild(printQuickTodoBtn);
-
-    // Shopping List Creator Section
-    const shoppingSection = this.createCollapsibleSection('🛒 Create Shopping List');
-    const shoppingContent = shoppingSection.content;
-
-    const storeInput = document.createElement('input');
-    storeInput.type = 'text';
-    storeInput.placeholder = 'Store name (e.g., "Walmart")';
-    storeInput.style.width = '100%';
-    storeInput.style.padding = '10px';
-    storeInput.style.border = '1px solid var(--divider-color)';
-    storeInput.style.borderRadius = '6px';
-    storeInput.style.margin = '8px 0';
-    storeInput.style.boxSizing = 'border-box';
-
-    const budgetInput = document.createElement('input');
-    budgetInput.type = 'text';
-    budgetInput.placeholder = 'Budget (e.g., "$150")';
-    budgetInput.style.width = '100%';
-    budgetInput.style.padding = '10px';
-    budgetInput.style.border = '1px solid var(--divider-color)';
-    budgetInput.style.borderRadius = '6px';
-    budgetInput.style.margin = '8px 0';
-    budgetInput.style.boxSizing = 'border-box';
-
-    const shoppingItemsArea = document.createElement('textarea');
-    shoppingItemsArea.placeholder = 'Shopping items (one per line):\nMilk\nBread\nEggs\nApples';
-    shoppingItemsArea.style.width = '100%';
-    shoppingItemsArea.style.minHeight = '100px';
-    shoppingItemsArea.style.padding = '10px';
-    shoppingItemsArea.style.border = '1px solid var(--divider-color)';
-    shoppingItemsArea.style.borderRadius = '6px';
-    shoppingItemsArea.style.resize = 'vertical';
-    shoppingItemsArea.style.margin = '8px 0';
-    shoppingItemsArea.style.boxSizing = 'border-box';
-
-    const printShoppingBtn = document.createElement('button');
-    printShoppingBtn.innerHTML = '🛒 Print Shopping List';
-    printShoppingBtn.style.background = 'var(--success-color)';
-    this.styleButton(printShoppingBtn);
-
-    printShoppingBtn.addEventListener('click', function() {
-      const items = shoppingItemsArea.value.split('\n')
-        .map(item => item.trim())
-        .filter(item => item.length > 0)
-        .join('|');
       
-      if (!items) {
-        alert('Please enter at least one shopping item');
-        return;
-      }
-
-      self.callService('print_shopping_list', {
-        store_name: storeInput.value,
-        items: items,
-        budget: budgetInput.value,
-        categories: ''
+      self.callService('queue_two_column', {
+        left_text: leftText,
+        right_text: rightText,
+        fill_dots: fillDotsCheck.checked,
+        text_size: twoColSizeSelect.value,
+        priority: twoColPriorityCheck.checked ? 1 : 0
       });
+
+      leftColInput.value = '';
+      rightColInput.value = '';
+      self.showQueueNotification('Two-column layout queued');
     });
 
-    shoppingContent.appendChild(storeInput);
-    shoppingContent.appendChild(budgetInput);
-    shoppingContent.appendChild(shoppingItemsArea);
-    shoppingContent.appendChild(printShoppingBtn);
+    twoColContent.appendChild(twoColContainer);
+    twoColContent.appendChild(twoColControls);
+    twoColContent.appendChild(printTwoColBtn);
 
-    // Barcode Printing Section (simplified)
-    const barcodeSection = this.createCollapsibleSection('📱 Barcode Printing');
+    // Barcode Section (Modified for Queue)
+    const barcodeSection = this.createCollapsibleSection('📱 Queue Barcode');
     const barcodeContent = barcodeSection.content;
-
-    const barcodeInput = document.createElement('input');
-    barcodeInput.type = 'text';
-    barcodeInput.placeholder = 'Barcode data (e.g., "123456789")';
-    barcodeInput.style.width = '100%';
-    barcodeInput.style.padding = '10px';
-    barcodeInput.style.margin = '8px 0';
-    barcodeInput.style.border = '1px solid var(--divider-color)';
-    barcodeInput.style.borderRadius = '6px';
-    barcodeInput.style.boxSizing = 'border-box';
 
     const barcodeTypeSelect = document.createElement('select');
     barcodeTypeSelect.style.width = '100%';
@@ -429,14 +446,33 @@ class ThermalPrinterCard extends HTMLElement {
     barcodeTypeSelect.style.border = '1px solid var(--divider-color)';
     barcodeTypeSelect.style.borderRadius = '6px';
     this.addOptions(barcodeTypeSelect, [
-      { value: '8', text: 'CODE128 (recommended)', selected: true },
-      { value: '4', text: 'CODE39' },
-      { value: '2', text: 'EAN13' },
-      { value: '0', text: 'UPC-A' }
+      { value: '0', text: 'UPC-A (12 digits)' },
+      { value: '1', text: 'UPC-E (6-8 digits)' },
+      { value: '2', text: 'EAN13 (12-13 digits)' },
+      { value: '3', text: 'EAN8 (7-8 digits)' },
+      { value: '4', text: 'CODE39 (alphanumeric)' },
+      { value: '5', text: 'ITF (even digits)' },
+      { value: '6', text: 'CODABAR (numeric + special)' },
+      { value: '7', text: 'CODE93 (alphanumeric)' },
+      { value: '8', text: 'CODE128 (full ASCII)', selected: true }
     ]);
 
+    const barcodeInput = document.createElement('input');
+    barcodeInput.type = 'text';
+    barcodeInput.placeholder = 'Barcode data';
+    barcodeInput.style.width = '100%';
+    barcodeInput.style.padding = '10px';
+    barcodeInput.style.margin = '8px 0';
+    barcodeInput.style.border = '1px solid var(--divider-color)';
+    barcodeInput.style.borderRadius = '6px';
+    barcodeInput.style.fontFamily = 'monospace';
+    barcodeInput.style.boxSizing = 'border-box';
+
+    const barcodePriorityCheck = this.createCheckbox('High Priority');
+    barcodePriorityCheck.style.margin = '8px 0';
+
     const printBarcodeBtn = document.createElement('button');
-    printBarcodeBtn.innerHTML = '📱 Print Barcode';
+    printBarcodeBtn.innerHTML = '📱 Queue Barcode';
     this.styleButton(printBarcodeBtn);
 
     printBarcodeBtn.addEventListener('click', function() {
@@ -446,45 +482,233 @@ class ThermalPrinterCard extends HTMLElement {
         return;
       }
       
-      self.callService('print_barcode', {
+      self.callService('queue_barcode', {
         barcode_type: parseInt(barcodeTypeSelect.value),
-        barcode_data: data
+        barcode_data: data,
+        priority: barcodePriorityCheck.checked ? 1 : 0
       });
+      
+      barcodeInput.value = '';
+      self.showQueueNotification('Barcode queued');
     });
 
-    barcodeContent.appendChild(barcodeInput);
     barcodeContent.appendChild(barcodeTypeSelect);
+    barcodeContent.appendChild(barcodeInput);
+    barcodeContent.appendChild(barcodePriorityCheck);
     barcodeContent.appendChild(printBarcodeBtn);
+
+    // QR Code Section (Modified for Queue)
+    const qrSection = this.createCollapsibleSection('📱 Queue QR Code');
+    const qrContent = qrSection.content;
+
+    const qrInput = document.createElement('input');
+    qrInput.type = 'text';
+    qrInput.placeholder = 'QR code data (URL, text, etc.)';
+    qrInput.style.width = '100%';
+    qrInput.style.padding = '8px';
+    qrInput.style.margin = '8px 0';
+    qrInput.style.border = '1px solid var(--divider-color)';
+    qrInput.style.borderRadius = '6px';
+    qrInput.style.boxSizing = 'border-box';
+
+    const qrControls = document.createElement('div');
+    qrControls.style.display = 'grid';
+    qrControls.style.gridTemplateColumns = '1fr 1fr 1fr';
+    qrControls.style.gap = '8px';
+    qrControls.style.margin = '8px 0';
+
+    const qrSizeSelect = document.createElement('select');
+    qrSizeSelect.style.padding = '6px';
+    qrSizeSelect.style.border = '1px solid var(--divider-color)';
+    qrSizeSelect.style.borderRadius = '6px';
+    this.addOptions(qrSizeSelect, [
+      { value: '1', text: 'Small' },
+      { value: '2', text: 'Medium' },
+      { value: '3', text: 'Large', selected: true },
+      { value: '4', text: 'X-Large' }
+    ]);
+
+    const qrErrorSelect = document.createElement('select');
+    qrErrorSelect.style.padding = '6px';
+    qrErrorSelect.style.border = '1px solid var(--divider-color)';
+    qrErrorSelect.style.borderRadius = '6px';
+    this.addOptions(qrErrorSelect, [
+      { value: '0', text: 'Low (7%)' },
+      { value: '1', text: 'Medium (15%)', selected: true },
+      { value: '2', text: 'High (25%)' },
+      { value: '3', text: 'Max (30%)' }
+    ]);
+
+    const qrPriorityCheck = this.createCheckbox('Priority');
+
+    qrControls.appendChild(qrSizeSelect);
+    qrControls.appendChild(qrErrorSelect);
+    qrControls.appendChild(qrPriorityCheck);
+
+    const printQrBtn = document.createElement('button');
+    printQrBtn.innerHTML = '📱 Queue QR Code';
+    this.styleButton(printQrBtn);
+
+    printQrBtn.addEventListener('click', function() {
+      const data = qrInput.value;
+      if (!data.trim()) {
+        alert('Please enter QR code data');
+        return;
+      }
+      
+      self.callService('queue_qr_code', {
+        data: data,
+        size: parseInt(qrSizeSelect.value),
+        error_correction: parseInt(qrErrorSelect.value),
+        priority: qrPriorityCheck.checked ? 1 : 0
+      });
+      
+      qrInput.value = '';
+      self.showQueueNotification('QR code queued');
+    });
+
+    qrContent.appendChild(qrInput);
+    qrContent.appendChild(qrControls);
+    qrContent.appendChild(printQrBtn);
+
+    // Batch Processing Section
+    const batchSection = this.createCollapsibleSection('📋 Batch Queue Processing');
+    const batchContent = batchSection.content;
+
+    const batchInput = document.createElement('textarea');
+    batchInput.placeholder = 'Enter multiple lines to print (one per line)...';
+    batchInput.style.width = '100%';
+    batchInput.style.minHeight = '80px';
+    batchInput.style.padding = '12px';
+    batchInput.style.border = '1px solid var(--divider-color)';
+    batchInput.style.borderRadius = '8px';
+    batchInput.style.fontFamily = 'Courier New, monospace';
+    batchInput.style.margin = '8px 0';
+    batchInput.style.boxSizing = 'border-box';
+
+    const batchControls = document.createElement('div');
+    batchControls.style.display = 'grid';
+    batchControls.style.gridTemplateColumns = '1fr 1fr';
+    batchControls.style.gap = '8px';
+    batchControls.style.margin = '8px 0';
+
+    const batchSizeSelect = document.createElement('select');
+    batchSizeSelect.style.padding = '8px';
+    batchSizeSelect.style.border = '1px solid var(--divider-color)';
+    batchSizeSelect.style.borderRadius = '6px';
+    this.addOptions(batchSizeSelect, [
+      { value: 'S', text: 'Small Text' },
+      { value: 'M', text: 'Medium Text', selected: true },
+      { value: 'L', text: 'Large Text' }
+    ]);
+
+    const batchPriorityCheck = this.createCheckbox('High Priority');
+
+    batchControls.appendChild(batchSizeSelect);
+    batchControls.appendChild(batchPriorityCheck);
+
+    const batchBtn = document.createElement('button');
+    batchBtn.innerHTML = '📋 Queue Batch Items';
+    this.styleButton(batchBtn);
+
+    batchBtn.addEventListener('click', function() {
+      const text = batchInput.value;
+      if (!text.trim()) {
+        alert('Please enter items to batch print');
+        return;
+      }
+
+      // Convert newlines to pipe separator for the service
+      const items = text.split('\n').filter(line => line.trim()).join('|');
+      
+      self.callService('batch_print_text', {
+        items: items,
+        text_size: batchSizeSelect.value,
+        priority: batchPriorityCheck.checked ? 1 : 0
+      });
+      
+      batchInput.value = '';
+      const itemCount = items.split('|').length;
+      self.showQueueNotification(`${itemCount} items queued for batch printing`);
+    });
+
+    batchContent.appendChild(batchInput);
+    batchContent.appendChild(batchControls);
+    batchContent.appendChild(batchBtn);
 
     // Assembly
     content.appendChild(statusDiv);
+    content.appendChild(queueSection);
     content.appendChild(usageSection);
     content.appendChild(actionsTitle);
     content.appendChild(actionsRow1);
     content.appendChild(actionsRow2);
-    content.appendChild(todoActionsTitle);
-    content.appendChild(todoActionsRow);
     content.appendChild(textSection.section);
-    content.appendChild(todoSection.section);
-    content.appendChild(shoppingSection.section);
+    content.appendChild(twoColSection.section);
     content.appendChild(barcodeSection.section);
+    content.appendChild(qrSection.section);
+    content.appendChild(batchSection.section);
 
     card.appendChild(content);
     root.appendChild(card);
 
     this._config = config;
 
-    // Event listeners for collapsible sections
-    const sections = [textSection, todoSection, shoppingSection, barcodeSection];
-    sections.forEach(sectionObj => {
-      sectionObj.toggle.addEventListener('click', () => {
-        this.toggleSection(sectionObj);
-      });
+    // Event listeners for all collapsible sections
+    textSection.toggle.addEventListener('click', function() {
+      self.toggleSection(textSection);
+    });
+    twoColSection.toggle.addEventListener('click', function() {
+      self.toggleSection(twoColSection);
+    });
+    barcodeSection.toggle.addEventListener('click', function() {
+      self.toggleSection(barcodeSection);
+    });
+    qrSection.toggle.addEventListener('click', function() {
+      self.toggleSection(qrSection);
+    });
+    batchSection.toggle.addEventListener('click', function() {
+      self.toggleSection(batchSection);
     });
 
-    refreshBtn.addEventListener('click', () => {
-      this.callService('wake_printer');
+    refreshBtn.addEventListener('click', function() {
+      self.callService('wake_printer');
     });
+  }
+
+  showQueueNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.innerHTML = `✅ ${message}`;
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.right = '20px';
+    notification.style.background = type === 'error' ? 'var(--error-color)' : 
+                                   type === 'warning' ? 'var(--warning-color)' : 'var(--success-color)';
+    notification.style.color = 'white';
+    notification.style.padding = '12px 16px';
+    notification.style.borderRadius = '8px';
+    notification.style.zIndex = '9999';
+    notification.style.fontSize = '14px';
+    notification.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+    notification.style.transform = 'translateX(100%)';
+    notification.style.transition = 'transform 0.3s ease';
+    
+    document.body.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+      notification.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Animate out and remove
+    setTimeout(() => {
+      notification.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }, 3000);
   }
 
   createButton(text, action) {
@@ -614,30 +838,18 @@ class ThermalPrinterCard extends HTMLElement {
       const entityParts = this._config.entity.split('.');
       let deviceName = entityParts[1];
       
+      // Clean up device name
       deviceName = deviceName.replace(/_printer_wake$/, '');
       deviceName = deviceName.replace(/_wake$/, '');
       
       const serviceName = deviceName + '_' + service;
       
-      console.log('Calling service: esphome.' + serviceName, data);
+      console.log('Calling queue service: esphome.' + serviceName, data);
       this._hass.callService('esphome', serviceName, data);
       
     } catch (error) {
       console.error('Service call failed:', error);
       alert('Service call failed: ' + error.message);
-    }
-  }
-
-  callScript(script, data) {
-    if (!data) data = {};
-    
-    try {
-      console.log('Calling script: script.' + script, data);
-      this._hass.callService('script', script, data);
-      
-    } catch (error) {
-      console.error('Script call failed:', error);
-      alert('Script call failed: ' + error.message);
     }
   }
 
@@ -653,8 +865,43 @@ class ThermalPrinterCard extends HTMLElement {
       statusText.innerHTML = entity.state === 'on' ? 'Ready' : 'Offline';
     }
 
-    // Update usage if sensors exist
-    const usageSensor = hass.states[this._config.usage_sensor] || hass.states['sensor.thermal_printer_paper_usage_percent'];
+    // Update queue status
+    const queueLengthSpan = this.shadowRoot.getElementById('queue-length');
+    const queueLengthSensor = hass.states['sensor.thermal_printer_queue_print_queue_length'];
+    if (queueLengthSpan && queueLengthSensor) {
+      const length = parseInt(queueLengthSensor.state) || 0;
+      queueLengthSpan.innerHTML = length.toString();
+      
+      // Color code based on queue length
+      if (length === 0) {
+        queueLengthSpan.style.color = 'var(--success-color)';
+      } else if (length < 5) {
+        queueLengthSpan.style.color = 'var(--warning-color)';
+      } else {
+        queueLengthSpan.style.color = 'var(--error-color)';
+      }
+    }
+
+    // Update busy status
+    const busyStatusSpan = this.shadowRoot.getElementById('busy-status');
+    const busySensor = hass.states['binary_sensor.thermal_printer_queue_printer_busy'];
+    if (busyStatusSpan && busySensor) {
+      const isBusy = busySensor.state === 'on';
+      busyStatusSpan.innerHTML = isBusy ? 'Printing...' : 'Ready';
+      busyStatusSpan.parentElement.innerHTML = 
+        (isBusy ? '🔴' : '🟢') + ' <span id="busy-status">' + 
+        (isBusy ? 'Printing...' : 'Ready') + '</span>';
+    }
+
+    // Update jobs processed
+    const jobsProcessedSpan = this.shadowRoot.getElementById('jobs-processed');
+    const jobsSensor = hass.states['sensor.thermal_printer_queue_total_jobs_processed'];
+    if (jobsProcessedSpan && jobsSensor) {
+      jobsProcessedSpan.innerHTML = jobsSensor.state || '0';
+    }
+
+    // Update usage sensors
+    const usageSensor = hass.states['sensor.thermal_printer_queue_paper_usage_percent'];
     if (usageSensor) {
       const usageFill = this.shadowRoot.getElementById('usage-fill');
       const usageText = this.shadowRoot.getElementById('usage-text');
@@ -664,13 +911,13 @@ class ThermalPrinterCard extends HTMLElement {
       if (usageText) usageText.innerHTML = percentage.toFixed(1) + '%';
     }
 
-    const usageMmSensor = hass.states[this._config.usage_mm_sensor] || hass.states['sensor.thermal_printer_paper_usage_mm'];
+    const usageMmSensor = hass.states['sensor.thermal_printer_queue_paper_usage_mm'];
     if (usageMmSensor) {
       const usageMm = this.shadowRoot.getElementById('usage-mm');
       if (usageMm) usageMm.innerHTML = parseFloat(usageMmSensor.state).toFixed(1);
     }
 
-    const linesSensor = hass.states[this._config.lines_sensor] || hass.states['sensor.thermal_printer_lines_printed'];
+    const linesSensor = hass.states['sensor.thermal_printer_queue_lines_printed'];
     if (linesSensor) {
       const linesPrinted = this.shadowRoot.getElementById('lines-printed');
       if (linesPrinted) linesPrinted.innerHTML = linesSensor.state;
@@ -690,8 +937,8 @@ if (!window.customCards) {
 
 window.customCards.push({
   type: 'thermal-printer-card',
-  name: 'Thermal Printer Card with Todo Lists',
-  description: 'Complete thermal printer control with integrated todo list printing'
+  name: 'Queue-Aware Thermal Printer Card',
+  description: 'Complete thermal printer control with intelligent queue system'
 });
 
-console.log('Enhanced Thermal Printer Card with Todo Lists loaded successfully!');
+console.log('Queue-Aware Thermal Printer Card loaded successfully!');
