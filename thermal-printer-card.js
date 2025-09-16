@@ -162,12 +162,8 @@ class ThermalPrinterCard extends HTMLElement {
       }
     }.bind(this));
     
-    const testRotateBtn = this.createButton('🔄 Test Rotation', function() {
-      this.callService('print_rotated_text', {
-        message: 'ROTATED',
-        rotation: 1,
-        size: 'L'
-      });
+    const testRotateBtn = this.createButton('📄 Feed 5 Lines', function() {
+      this.callService('feed_paper', { lines: 5 });
     }.bind(this));
 
     actionsRow2.appendChild(feedBtn);
@@ -223,14 +219,12 @@ class ThermalPrinterCard extends HTMLElement {
     const boldCheck = this.createCheckbox('Bold');
     const underlineCheck = this.createCheckbox('Underline');
     const inverseCheck = this.createCheckbox('Inverse');
-    const rotateCheck = this.createCheckbox('90° Rotate');
 
     formatControls.appendChild(sizeSelect);
     formatControls.appendChild(alignSelect);
     formatControls.appendChild(boldCheck);
     formatControls.appendChild(underlineCheck);
     formatControls.appendChild(inverseCheck);
-    formatControls.appendChild(rotateCheck);
 
     const printTextBtn = document.createElement('button');
     printTextBtn.innerHTML = '🖨️ Print Text';
@@ -245,23 +239,14 @@ class ThermalPrinterCard extends HTMLElement {
         return;
       }
 
-      if (rotateCheck.checked) {
-        self.callService('print_rotated_text', {
-          message: text,
-          rotation: 1,
-          size: sizeSelect.value
-        });
-      } else {
-        self.callService('print_text', {
-          message: text,
-          text_size: sizeSelect.value,
-          alignment: alignSelect.value,
-          bold: boldCheck.checked,
-          underline: underlineCheck.checked,
-          inverse: inverseCheck.checked,
-          rotation: 0
-        });
-      }
+      self.callService('print_text', {
+        message: text,
+        text_size: sizeSelect.value,
+        alignment: alignSelect.value,
+        bold: boldCheck.checked,
+        underline: underlineCheck.checked,
+        inverse: inverseCheck.checked
+      });
     });
 
     textContent.appendChild(textInput);
@@ -273,7 +258,6 @@ class ThermalPrinterCard extends HTMLElement {
       const size = sizeSelect.value;
       const bold = boldCheck.checked;
       const underline = underlineCheck.checked;
-      const rotate = rotateCheck.checked;
       
       let maxChars = 32; // Default for small
       if (size === 'M') maxChars = 24;
@@ -282,7 +266,6 @@ class ThermalPrinterCard extends HTMLElement {
       // Modifiers reduce available space
       if (bold) maxChars = Math.floor(maxChars * 0.8);
       if (underline) maxChars = Math.floor(maxChars * 0.9);
-      if (rotate) maxChars = Math.floor(maxChars * 0.7); // Rotation takes more space
       
       // Update placeholder and validation
       const currentLength = textInput.value.length;
@@ -330,7 +313,6 @@ class ThermalPrinterCard extends HTMLElement {
     sizeSelect.addEventListener('change', this.updateCharacterLimits);
     boldCheck.addEventListener('change', this.updateCharacterLimits);
     underlineCheck.addEventListener('change', this.updateCharacterLimits);
-    rotateCheck.addEventListener('change', this.updateCharacterLimits);
     
     // Initialize character limits
     this.updateCharacterLimits();
@@ -544,13 +526,13 @@ class ThermalPrinterCard extends HTMLElement {
     };
     updateThreeColumnLimits();
 
-    // Label Printing Section
-    const labelSection = this.createCollapsibleSection('🏷️ Label Printing (Rotated + Vertical)');
+    // Simple Text Printing Section (Vertical style)
+    const labelSection = this.createCollapsibleSection('📝 Vertical Text Printing');
     const labelContent = labelSection.content;
 
     const labelInput = document.createElement('input');
     labelInput.type = 'text';
-    labelInput.placeholder = 'Enter label text...';
+    labelInput.placeholder = 'Enter text for vertical printing...';
     labelInput.style.width = '100%';
     labelInput.style.padding = '10px';
     labelInput.style.border = '1px solid var(--divider-color)';
@@ -572,10 +554,9 @@ class ThermalPrinterCard extends HTMLElement {
     labelSizeSelect.style.borderRadius = '6px';
     labelSizeSelect.style.background = 'var(--card-background-color)';
     this.addOptions(labelSizeSelect, [
-      { value: 'S', text: 'Small Label' },
-      { value: 'M', text: 'Medium Label', selected: true },
-      { value: 'L', text: 'Large Label' },
-      { value: 'XL', text: 'Extra Large' }
+      { value: 'S', text: 'Small' },
+      { value: 'M', text: 'Medium', selected: true },
+      { value: 'L', text: 'Large' }
     ]);
 
     const spacingSelect = document.createElement('select');
@@ -592,43 +573,21 @@ class ThermalPrinterCard extends HTMLElement {
     labelControls.appendChild(labelSizeSelect);
     labelControls.appendChild(spacingSelect);
 
-    const printLabelBtn = document.createElement('button');
-    printLabelBtn.innerHTML = '🏷️ Print Label (Rotated)';
-    printLabelBtn.style.background = 'var(--success-color)';
-    this.styleButton(printLabelBtn);
-
-    // Add alternative label button
+    // Print vertical text (each character on new line)
     const printVerticalBtn = document.createElement('button');
-    printVerticalBtn.innerHTML = '📝 Print Vertical (No Rotation)';
-    printVerticalBtn.style.background = 'var(--warning-color)';
+    printVerticalBtn.innerHTML = '📝 Print Vertical Text';
+    printVerticalBtn.style.background = 'var(--success-color)';
     printVerticalBtn.style.margin = '4px 0';
     this.styleButton(printVerticalBtn);
 
-    printLabelBtn.addEventListener('click', function() {
-      const text = labelInput.value;
-      if (!text.trim()) {
-        alert('Please enter label text');
-        return;
-      }
-      
-      console.log('Printing rotated label:', text, 'length:', text.length);
-      
-      self.callService('print_rotated_text', {
-        message: text,
-        rotation: 1,
-        size: labelSizeSelect.value
-      });
-    });
-
-    // Alternative vertical printing without rotation
     printVerticalBtn.addEventListener('click', function() {
       const text = labelInput.value;
       if (!text.trim()) {
-        alert('Please enter label text');
+        alert('Please enter text for vertical printing');
         return;
       }
       
-      console.log('Printing vertical label:', text, 'length:', text.length);
+      console.log('Printing vertical text:', text, 'length:', text.length);
       
       // Create vertical text by putting each character on a new line
       const verticalText = text.split('').join('\n');
@@ -639,17 +598,15 @@ class ThermalPrinterCard extends HTMLElement {
         alignment: 'C',
         bold: false,
         underline: false,
-        inverse: false,
-        rotation: 0
+        inverse: false
       });
     });
 
     const labelInfo = document.createElement('div');
     labelInfo.innerHTML = `
-      💡 <strong>Label Options:</strong><br>
-      🏷️ <strong>Rotated:</strong> Uses ESC V rotation (if supported)<br>
-      📝 <strong>Vertical:</strong> Characters on separate lines<br>
-      <em>Try both to see which works better with your printer!</em>
+      💡 <strong>Vertical Text:</strong><br>
+      Each character prints on a separate line for vertical labels.<br>
+      <em>Perfect for spine labels or narrow space printing!</em>
     `;
     labelInfo.style.fontSize = '12px';
     labelInfo.style.color = 'var(--secondary-text-color)';
@@ -661,7 +618,6 @@ class ThermalPrinterCard extends HTMLElement {
 
     labelContent.appendChild(labelInput);
     labelContent.appendChild(labelControls);
-    labelContent.appendChild(printLabelBtn);
     labelContent.appendChild(printVerticalBtn);
     labelContent.appendChild(labelInfo);
 
