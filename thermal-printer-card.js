@@ -2,855 +2,824 @@ class ThermalPrinterCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this.currentPrintQueue = [];
+    this.isProcessingQueue = false;
   }
 
   setConfig(config) {
     if (!config.entity) {
-      throw new Error('You need to define an entity');
+      throw new Error('You need to define an entity (the main thermal printer device)');
     }
 
+    // Auto-detect entity naming pattern
+    this.entityBase = config.entity.replace(/^switch\./, '').replace(/_printer_wake$/, '').replace(/_wake$/, '');
+    
     const root = this.shadowRoot;
     root.innerHTML = '';
 
+    // Add enhanced styles
+    const style = document.createElement('style');
+    style.textContent = `
+      :host {
+        --thermal-primary: var(--primary-color);
+        --thermal-success: var(--success-color, #4caf50);
+        --thermal-warning: var(--warning-color, #ff9800);
+        --thermal-error: var(--error-color, #f44336);
+        --thermal-info: var(--info-color, #2196f3);
+      }
+      
+      .thermal-card {
+        padding: 16px;
+        background: var(--card-background-color);
+        border-radius: 8px;
+        box-shadow: var(--ha-card-box-shadow);
+      }
+      
+      .status-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        margin-bottom: 16px;
+        background: var(--thermal-primary);
+        color: var(--text-primary-color);
+        border-radius: 8px;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--thermal-success);
+        transition: all 0.3s ease;
+      }
+      
+      .status-dot.offline { background: var(--thermal-error); }
+      .status-dot.warning { background: var(--thermal-warning); }
+      .status-dot.printing { 
+        background: var(--thermal-info);
+        animation: pulse 1.5s infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(1.1); }
+      }
+      
+      .queue-indicator {
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--thermal-info);
+        animation: progress 2s linear infinite;
+      }
+      
+      .queue-indicator.active { display: block; }
+      
+      @keyframes progress {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      
+      .paper-usage {
+        margin: 16px 0;
+        padding: 16px;
+        background: var(--card-background-color);
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+      }
+      
+      .usage-bar {
+        width: 100%;
+        height: 24px;
+        background: var(--disabled-text-color);
+        border-radius: 12px;
+        overflow: hidden;
+        position: relative;
+        margin: 12px 0;
+      }
+      
+      .usage-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--thermal-success) 0%, var(--thermal-warning) 70%, var(--thermal-error) 100%);
+        transition: width 0.5s ease;
+        width: 0%;
+      }
+      
+      .usage-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: var(--primary-text-color);
+        font-size: 13px;
+        font-weight: 600;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+      }
+      
+      .actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 8px;
+        margin: 16px 0;
+      }
+      
+      .thermal-button {
+        padding: 12px 16px;
+        border: none;
+        border-radius: 8px;
+        background: var(--thermal-primary);
+        color: var(--text-primary-color);
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .thermal-button:hover {
+        filter: brightness(1.1);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      }
+      
+      .thermal-button:active {
+        transform: translateY(0);
+      }
+      
+      .thermal-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+      
+      .thermal-button.success { background: var(--thermal-success); }
+      .thermal-button.warning { background: var(--thermal-warning); }
+      .thermal-button.error { background: var(--thermal-error); }
+      .thermal-button.info { background: var(--thermal-info); }
+      
+      .section {
+        margin: 16px 0;
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      
+      .section-header {
+        padding: 12px 16px;
+        background: var(--divider-color);
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background-color 0.2s ease;
+      }
+      
+      .section-header:hover {
+        background: var(--secondary-background-color);
+      }
+      
+      .section-content {
+        padding: 16px;
+        display: none;
+      }
+      
+      .section-content.open {
+        display: block;
+      }
+      
+      .form-group {
+        margin: 12px 0;
+      }
+      
+      .form-group label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 500;
+        color: var(--primary-text-color);
+      }
+      
+      .form-control {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--divider-color);
+        border-radius: 6px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      
+      .form-control:focus {
+        outline: none;
+        border-color: var(--thermal-primary);
+        box-shadow: 0 0 0 2px rgba(var(--rgb-primary-color), 0.2);
+      }
+      
+      .checkbox-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 8px;
+        margin: 12px 0;
+      }
+      
+      .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: var(--secondary-background-color);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+      }
+      
+      .checkbox-item:hover {
+        background: var(--divider-color);
+      }
+      
+      .two-column {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      
+      .three-column {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
+      
+      .validation-error {
+        background: var(--thermal-error);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin: 8px 0;
+        font-size: 12px;
+        display: none;
+      }
+      
+      .validation-error.show {
+        display: block;
+      }
+      
+      .hint {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+        margin: 8px 0;
+        padding: 8px 12px;
+        background: var(--secondary-background-color);
+        border-radius: 4px;
+        border-left: 3px solid var(--thermal-info);
+      }
+      
+      .queue-status {
+        margin: 8px 0;
+        padding: 8px 12px;
+        background: var(--secondary-background-color);
+        border-radius: 4px;
+        font-size: 12px;
+        display: none;
+      }
+      
+      .queue-status.active {
+        display: block;
+        border-left: 3px solid var(--thermal-info);
+      }
+    `;
+    root.appendChild(style);
+
     const card = document.createElement('ha-card');
-    card.setAttribute('header', config.title || 'Thermal Printer with Queue');
+    card.setAttribute('header', config.title || 'Thermal Printer');
     
     const content = document.createElement('div');
-    content.style.padding = '16px';
+    content.className = 'thermal-card';
 
-    // Printer Status Section
-    const statusDiv = document.createElement('div');
-    statusDiv.style.display = 'flex';
-    statusDiv.style.justifyContent = 'space-between';
-    statusDiv.style.alignItems = 'center';
-    statusDiv.style.marginBottom = '16px';
-    statusDiv.style.padding = '12px';
-    statusDiv.style.background = 'var(--primary-color)';
-    statusDiv.style.color = 'var(--text-primary-color)';
-    statusDiv.style.borderRadius = '8px';
+    // Status Bar with Queue Indicator
+    const statusBar = document.createElement('div');
+    statusBar.className = 'status-bar';
+    statusBar.innerHTML = `
+      <div class="queue-indicator" id="queue-indicator"></div>
+      <div class="status-indicator">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Initializing...</span>
+      </div>
+      <button class="thermal-button" id="refresh-btn">🔄 Refresh</button>
+    `;
 
-    const statusIndicator = document.createElement('div');
-    statusIndicator.style.display = 'flex';
-    statusIndicator.style.alignItems = 'center';
-    statusIndicator.style.gap = '8px';
-
-    const statusDot = document.createElement('div');
-    statusDot.id = 'status-dot';
-    statusDot.style.width = '12px';
-    statusDot.style.height = '12px';
-    statusDot.style.borderRadius = '50%';
-    statusDot.style.background = 'var(--success-color)';
-
-    const statusText = document.createElement('span');
-    statusText.id = 'status-text';
-    statusText.innerHTML = 'Printer Ready';
-
-    statusIndicator.appendChild(statusDot);
-    statusIndicator.appendChild(statusText);
-
-    const refreshBtn = document.createElement('button');
-    refreshBtn.innerHTML = '🔄 Refresh';
-    refreshBtn.style.padding = '6px 12px';
-    refreshBtn.style.border = 'none';
-    refreshBtn.style.borderRadius = '4px';
-    refreshBtn.style.background = 'var(--accent-color)';
-    refreshBtn.style.color = 'var(--text-primary-color)';
-    refreshBtn.style.cursor = 'pointer';
-
-    statusDiv.appendChild(statusIndicator);
-    statusDiv.appendChild(refreshBtn);
-
-    // ===== NEW: QUEUE STATUS SECTION =====
-    const queueSection = document.createElement('div');
-    queueSection.style.margin = '16px 0';
-    queueSection.style.padding = '12px';
-    queueSection.style.background = 'var(--card-background-color)';
-    queueSection.style.border = '1px solid var(--divider-color)';
-    queueSection.style.borderRadius = '8px';
-
-    const queueTitle = document.createElement('div');
-    queueTitle.innerHTML = '📋 Print Queue Status';
-    queueTitle.style.fontWeight = 'bold';
-    queueTitle.style.marginBottom = '8px';
-
-    const queueInfo = document.createElement('div');
-    queueInfo.style.display = 'grid';
-    queueInfo.style.gridTemplateColumns = '1fr 1fr 1fr';
-    queueInfo.style.gap = '8px';
-    queueInfo.style.fontSize = '14px';
-    queueInfo.style.marginBottom = '8px';
-
-    const queueLength = document.createElement('div');
-    queueLength.innerHTML = 'Queue: <span id="queue-length" style="font-weight: bold;">0</span>';
-    queueLength.style.color = 'var(--secondary-text-color)';
-
-    const busyIndicator = document.createElement('div');
-    busyIndicator.innerHTML = '🔴 <span id="busy-status">Ready</span>';
-    busyIndicator.style.color = 'var(--secondary-text-color)';
-
-    const jobsProcessed = document.createElement('div');
-    jobsProcessed.innerHTML = 'Jobs: <span id="jobs-processed">0</span>';
-    jobsProcessed.style.color = 'var(--secondary-text-color)';
-
-    queueInfo.appendChild(queueLength);
-    queueInfo.appendChild(busyIndicator);
-    queueInfo.appendChild(jobsProcessed);
-
-    // Queue control buttons
-    const queueControls = document.createElement('div');
-    queueControls.style.display = 'flex';
-    queueControls.style.gap = '8px';
-    queueControls.style.margin = '8px 0';
-
-    const clearQueueBtn = this.createButton('🗑️ Clear Queue', function() {
-      if (confirm('Clear all queued print jobs?')) {
-        this.callService('clear_print_queue');
-      }
-    }.bind(this));
-
-    const queueStatsBtn = this.createButton('📊 Queue Stats', function() {
-      this.callService('queue_status_button');
-    }.bind(this));
-
-    queueControls.appendChild(clearQueueBtn);
-    queueControls.appendChild(queueStatsBtn);
-
-    queueSection.appendChild(queueTitle);
-    queueSection.appendChild(queueInfo);
-    queueSection.appendChild(queueControls);
+    // Queue Status
+    const queueStatus = document.createElement('div');
+    queueStatus.id = 'queue-status';
+    queueStatus.className = 'queue-status';
+    queueStatus.innerHTML = 'Queue: 0 jobs pending';
 
     // Paper Usage Section
-    const usageSection = document.createElement('div');
-    usageSection.style.margin = '16px 0';
-    usageSection.style.padding = '12px';
-    usageSection.style.background = 'var(--card-background-color)';
-    usageSection.style.border = '1px solid var(--divider-color)';
-    usageSection.style.borderRadius = '8px';
+    const paperSection = document.createElement('div');
+    paperSection.className = 'paper-usage';
+    paperSection.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <strong>📄 Paper Usage</strong>
+        <button class="thermal-button" id="reset-usage" style="padding: 4px 8px; font-size: 12px;">Reset</button>
+      </div>
+      <div class="usage-bar">
+        <div class="usage-fill" id="usage-fill"></div>
+        <div class="usage-text" id="usage-text">0%</div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 13px; color: var(--secondary-text-color);">
+        <div>Used: <span id="usage-mm">0</span> mm</div>
+        <div>Lines: <span id="lines-printed">0</span></div>
+        <div>Chars: <span id="chars-printed">0</span></div>
+      </div>
+    `;
 
-    const usageTitle = document.createElement('div');
-    usageTitle.innerHTML = '📄 Paper Usage';
-    usageTitle.style.fontWeight = 'bold';
-    usageTitle.style.marginBottom = '8px';
+    // Quick Actions
+    const quickActions = document.createElement('div');
+    quickActions.innerHTML = `
+      <h3 style="margin: 16px 0 8px 0;">⚡ Quick Actions</h3>
+      <div class="actions-grid">
+        <button class="thermal-button" id="test-btn">🖨️ Test</button>
+        <button class="thermal-button success" id="wake-btn">⚡ Wake</button>
+        <button class="thermal-button warning" id="sleep-btn">😴 Sleep</button>
+        <button class="thermal-button info" id="feed-btn">📄 Feed</button>
+        <button class="thermal-button" id="separator-btn">➖ Separator</button>
+        <button class="thermal-button error" id="clear-queue-btn">🗑️ Clear Queue</button>
+      </div>
+    `;
 
-    const usageBar = document.createElement('div');
-    usageBar.style.width = '100%';
-    usageBar.style.height = '20px';
-    usageBar.style.background = 'var(--disabled-text-color)';
-    usageBar.style.borderRadius = '10px';
-    usageBar.style.overflow = 'hidden';
-    usageBar.style.margin = '8px 0';
-    usageBar.style.position = 'relative';
-
-    const usageFill = document.createElement('div');
-    usageFill.id = 'usage-fill';
-    usageFill.style.height = '100%';
-    usageFill.style.background = 'linear-gradient(90deg, var(--success-color), var(--warning-color), var(--error-color))';
-    usageFill.style.transition = 'width 0.3s ease';
-    usageFill.style.width = '0%';
-
-    const usageText = document.createElement('div');
-    usageText.id = 'usage-text';
-    usageText.style.position = 'absolute';
-    usageText.style.top = '50%';
-    usageText.style.left = '50%';
-    usageText.style.transform = 'translate(-50%, -50%)';
-    usageText.style.color = 'var(--primary-text-color)';
-    usageText.style.fontSize = '12px';
-    usageText.style.fontWeight = 'bold';
-    usageText.style.textShadow = '1px 1px 2px rgba(0,0,0,0.5)';
-    usageText.innerHTML = '0%';
-
-    usageBar.appendChild(usageFill);
-    usageBar.appendChild(usageText);
-
-    const usageStats = document.createElement('div');
-    usageStats.style.display = 'grid';
-    usageStats.style.gridTemplateColumns = '1fr 1fr';
-    usageStats.style.gap = '8px';
-    usageStats.style.fontSize = '14px';
-    usageStats.style.color = 'var(--secondary-text-color)';
-    usageStats.innerHTML = '<div>Used: <span id="usage-mm">0</span> mm</div><div>Lines: <span id="lines-printed">0</span></div>';
-
-    usageSection.appendChild(usageTitle);
-    usageSection.appendChild(usageBar);
-    usageSection.appendChild(usageStats);
-
-    // Quick Actions Section
-    const actionsTitle = document.createElement('div');
-    actionsTitle.innerHTML = '⚡ Quick Actions';
-    actionsTitle.style.fontWeight = 'bold';
-    actionsTitle.style.margin = '16px 0 8px 0';
-
-    const actionsRow1 = document.createElement('div');
-    actionsRow1.style.display = 'flex';
-    actionsRow1.style.gap = '8px';
-    actionsRow1.style.margin = '8px 0';
-    actionsRow1.style.flexWrap = 'wrap';
-
-    const testBtn = this.createButton('🖨️ Test Print', 'test_print');
-    const wakeBtn = this.createButton('⚡ Wake', 'wake_printer');
-    const sleepBtn = this.createButton('😴 Sleep', 'sleep_printer');
-
-    actionsRow1.appendChild(testBtn);
-    actionsRow1.appendChild(wakeBtn);
-    actionsRow1.appendChild(sleepBtn);
-
-    const actionsRow2 = document.createElement('div');
-    actionsRow2.style.display = 'flex';
-    actionsRow2.style.gap = '8px';
-    actionsRow2.style.margin = '8px 0';
-    actionsRow2.style.flexWrap = 'wrap';
-
-    const feedBtn = this.createButton('📄 Queue Feed', function() { 
-      this.callService('queue_feed_paper', { lines: 3, priority: 0 });
-      this.showQueueNotification('Paper feed queued');
-    }.bind(this));
-    
-    const separatorBtn = this.createButton('➖ Queue Separator', function() {
-      this.callService('queue_separator', { priority: 0 });
-      this.showQueueNotification('Separator queued');
-    }.bind(this));
-    
-    const emergencyBtn = this.createButton('🚨 Emergency', function() {
-      const message = prompt('Emergency message:');
-      if (message && message.trim()) {
-        this.callService('print_text_immediate', {
-          message: message,
-          text_size: 'L',
-          alignment: 'C',
-          bold: true
-        });
-        this.showQueueNotification('Emergency print sent!', 'error');
-      }
-    }.bind(this));
-    emergencyBtn.style.background = 'var(--error-color)';
-
-    actionsRow2.appendChild(feedBtn);
-    actionsRow2.appendChild(separatorBtn);
-    actionsRow2.appendChild(emergencyBtn);
-
-    // Text Printing Section (Modified for Queue)
-    const textSection = this.createCollapsibleSection('📝 Queue Text Printing');
-    const textContent = textSection.content;
-
-    const textInput = document.createElement('textarea');
-    textInput.placeholder = 'Enter text to queue for printing...';
-    textInput.style.width = '100%';
-    textInput.style.minHeight = '80px';
-    textInput.style.padding = '12px';
-    textInput.style.border = '1px solid var(--divider-color)';
-    textInput.style.borderRadius = '8px';
-    textInput.style.resize = 'vertical';
-    textInput.style.fontFamily = 'Courier New, monospace';
-    textInput.style.fontSize = '14px';
-    textInput.style.margin = '8px 0';
-    textInput.style.boxSizing = 'border-box';
-
-    const formatControls = document.createElement('div');
-    formatControls.style.display = 'grid';
-    formatControls.style.gridTemplateColumns = 'repeat(auto-fit, minmax(100px, 1fr))';
-    formatControls.style.gap = '8px';
-    formatControls.style.margin = '12px 0';
-
-    const sizeSelect = document.createElement('select');
-    sizeSelect.style.padding = '8px';
-    sizeSelect.style.border = '1px solid var(--divider-color)';
-    sizeSelect.style.borderRadius = '6px';
-    sizeSelect.style.background = 'var(--card-background-color)';
-    this.addOptions(sizeSelect, [
-      { value: 'S', text: 'Small' },
-      { value: 'M', text: 'Medium', selected: true },
-      { value: 'L', text: 'Large' }
-    ]);
-
-    const alignSelect = document.createElement('select');
-    alignSelect.style.padding = '8px';
-    alignSelect.style.border = '1px solid var(--divider-color)';
-    alignSelect.style.borderRadius = '6px';
-    alignSelect.style.background = 'var(--card-background-color)';
-    this.addOptions(alignSelect, [
-      { value: 'L', text: '← Left', selected: true },
-      { value: 'C', text: '⚬ Center' },
-      { value: 'R', text: '→ Right' }
-    ]);
-
-    const boldCheck = this.createCheckbox('Bold');
-    const underlineCheck = this.createCheckbox('Underline');
-    const inverseCheck = this.createCheckbox('Inverse');
-    const priorityCheck = this.createCheckbox('High Priority');
-
-    formatControls.appendChild(sizeSelect);
-    formatControls.appendChild(alignSelect);
-    formatControls.appendChild(boldCheck);
-    formatControls.appendChild(underlineCheck);
-    formatControls.appendChild(inverseCheck);
-    formatControls.appendChild(priorityCheck);
-
-    const printTextBtn = document.createElement('button');
-    printTextBtn.innerHTML = '📋 Queue Text';
-    printTextBtn.className = 'control-button';
-    this.styleButton(printTextBtn);
-
-    const printImmediateBtn = document.createElement('button');
-    printImmediateBtn.innerHTML = '⚡ Print Now';
-    printImmediateBtn.style.background = 'var(--warning-color)';
-    printImmediateBtn.style.margin = '4px 0';
-    this.styleButton(printImmediateBtn);
-
-    const self = this;
-    printTextBtn.addEventListener('click', function() {
-      const text = textInput.value;
-      if (!text.trim()) {
-        alert('Please enter some text to print');
-        return;
-      }
-
-      // Use queue service
-      self.callService('queue_print_text', {
-        message: text,
-        text_size: sizeSelect.value,
-        alignment: alignSelect.value,
-        bold: boldCheck.checked,
-        underline: underlineCheck.checked,
-        inverse: inverseCheck.checked,
-        priority: priorityCheck.checked ? 1 : 0
-      });
+    // Enhanced Text Printing Section
+    const textSection = this.createSection('📝 Text Printing', `
+      <div class="form-group">
+        <label for="text-input">Text to Print</label>
+        <textarea id="text-input" class="form-control" rows="4" placeholder="Enter text to print..."></textarea>
+        <div class="hint" id="text-hint">Characters remaining: calculating...</div>
+      </div>
       
-      // Clear the input after queuing
-      textInput.value = '';
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="bold-check">
+          <label for="bold-check">Bold</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="underline-check">
+          <label for="underline-check">Underline</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="inverse-check">
+          <label for="inverse-check">Inverse</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="rotate-check">
+          <label for="rotate-check">90° Rotate</label>
+        </div>
+      </div>
       
-      // Show confirmation
-      self.showQueueNotification('Text queued for printing');
-    });
-
-    printImmediateBtn.addEventListener('click', function() {
-      const text = textInput.value;
-      if (!text.trim()) {
-        alert('Please enter some text to print');
-        return;
-      }
-
-      // Use immediate service
-      self.callService('print_text_immediate', {
-        message: text,
-        text_size: sizeSelect.value,
-        alignment: alignSelect.value,
-        bold: boldCheck.checked
-      });
+      <div class="two-column">
+        <div class="form-group">
+          <label for="size-select">Text Size</label>
+          <select id="size-select" class="form-control">
+            <option value="S">Small (32 chars/line)</option>
+            <option value="M" selected>Medium (24 chars/line)</option>
+            <option value="L">Large (16 chars/line)</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="align-select">Alignment</label>
+          <select id="align-select" class="form-control">
+            <option value="L" selected>← Left</option>
+            <option value="C">⚬ Center</option>
+            <option value="R">→ Right</option>
+          </select>
+        </div>
+      </div>
       
-      textInput.value = '';
-      self.showQueueNotification('Text printed immediately!', 'warning');
-    });
+      <button class="thermal-button success" id="print-text-btn" style="width: 100%; margin-top: 12px;">
+        🖨️ Add to Print Queue
+      </button>
+    `);
 
-    textContent.appendChild(textInput);
-    textContent.appendChild(formatControls);
-    textContent.appendChild(printTextBtn);
-    textContent.appendChild(printImmediateBtn);
-
-    // Two-Column Section (Modified for Queue)
-    const twoColSection = this.createCollapsibleSection('📊 Queue Two-Column');
-    const twoColContent = twoColSection.content;
-
-    const twoColContainer = document.createElement('div');
-    twoColContainer.style.display = 'grid';
-    twoColContainer.style.gridTemplateColumns = '1fr 1fr';
-    twoColContainer.style.gap = '12px';
-    twoColContainer.style.margin = '12px 0';
-
-    const leftColInput = document.createElement('input');
-    leftColInput.type = 'text';
-    leftColInput.placeholder = 'Left column text';
-    leftColInput.style.width = '100%';
-    leftColInput.style.padding = '10px';
-    leftColInput.style.border = '1px solid var(--divider-color)';
-    leftColInput.style.borderRadius = '6px';
-    leftColInput.style.fontFamily = 'Courier New, monospace';
-    leftColInput.style.boxSizing = 'border-box';
-
-    const rightColInput = document.createElement('input');
-    rightColInput.type = 'text';
-    rightColInput.placeholder = 'Right column text';
-    rightColInput.style.width = '100%';
-    rightColInput.style.padding = '10px';
-    rightColInput.style.border = '1px solid var(--divider-color)';
-    rightColInput.style.borderRadius = '6px';
-    rightColInput.style.fontFamily = 'Courier New, monospace';
-    rightColInput.style.boxSizing = 'border-box';
-
-    twoColContainer.appendChild(leftColInput);
-    twoColContainer.appendChild(rightColInput);
-
-    const twoColControls = document.createElement('div');
-    twoColControls.style.display = 'grid';
-    twoColControls.style.gridTemplateColumns = '1fr 1fr 1fr';
-    twoColControls.style.gap = '8px';
-    twoColControls.style.margin = '8px 0';
-
-    const twoColSizeSelect = document.createElement('select');
-    twoColSizeSelect.style.padding = '8px';
-    twoColSizeSelect.style.border = '1px solid var(--divider-color)';
-    twoColSizeSelect.style.borderRadius = '6px';
-    this.addOptions(twoColSizeSelect, [
-      { value: 'S', text: 'Small', selected: true },
-      { value: 'M', text: 'Medium' },
-      { value: 'L', text: 'Large' }
-    ]);
-
-    const fillDotsCheck = this.createCheckbox('Fill dots');
-    fillDotsCheck.checked = true;
-
-    const twoColPriorityCheck = this.createCheckbox('Priority');
-
-    twoColControls.appendChild(twoColSizeSelect);
-    twoColControls.appendChild(fillDotsCheck);
-    twoColControls.appendChild(twoColPriorityCheck);
-
-    const printTwoColBtn = document.createElement('button');
-    printTwoColBtn.innerHTML = '📊 Queue Two Columns';
-    this.styleButton(printTwoColBtn);
-
-    printTwoColBtn.addEventListener('click', function() {
-      const leftText = leftColInput.value;
-      const rightText = rightColInput.value;
+    // Two-Column Printing
+    const twoColSection = this.createSection('📊 Receipt Printing', `
+      <div class="form-group">
+        <label>Receipt Items</label>
+        <div class="two-column">
+          <input type="text" id="left-col" class="form-control" placeholder="Item name">
+          <input type="text" id="right-col" class="form-control" placeholder="Price">
+        </div>
+        <div class="hint">Perfect for receipts: "Coffee..................$3.50"</div>
+      </div>
       
-      if (!leftText.trim() && !rightText.trim()) {
-        alert('Please enter text for at least one column');
-        return;
-      }
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="fill-dots" checked>
+          <label for="fill-dots">Fill with dots</label>
+        </div>
+        <div class="form-group" style="margin: 0;">
+          <select id="receipt-size" class="form-control">
+            <option value="S" selected>Small (32 chars)</option>
+            <option value="M">Medium (24 chars)</option>
+            <option value="L">Large (16 chars)</option>
+          </select>
+        </div>
+      </div>
       
-      self.callService('queue_two_column', {
-        left_text: leftText,
-        right_text: rightText,
-        fill_dots: fillDotsCheck.checked,
-        text_size: twoColSizeSelect.value,
-        priority: twoColPriorityCheck.checked ? 1 : 0
-      });
+      <button class="thermal-button info" id="print-receipt-btn" style="width: 100%; margin-top: 12px;">
+        📊 Add Receipt Line
+      </button>
+    `);
 
-      leftColInput.value = '';
-      rightColInput.value = '';
-      self.showQueueNotification('Two-column layout queued');
-    });
-
-    twoColContent.appendChild(twoColContainer);
-    twoColContent.appendChild(twoColControls);
-    twoColContent.appendChild(printTwoColBtn);
-
-    // Barcode Section (Modified for Queue)
-    const barcodeSection = this.createCollapsibleSection('📱 Queue Barcode');
-    const barcodeContent = barcodeSection.content;
-
-    const barcodeTypeSelect = document.createElement('select');
-    barcodeTypeSelect.style.width = '100%';
-    barcodeTypeSelect.style.margin = '8px 0';
-    barcodeTypeSelect.style.padding = '8px';
-    barcodeTypeSelect.style.border = '1px solid var(--divider-color)';
-    barcodeTypeSelect.style.borderRadius = '6px';
-    this.addOptions(barcodeTypeSelect, [
-      { value: '0', text: 'UPC-A (12 digits)' },
-      { value: '1', text: 'UPC-E (6-8 digits)' },
-      { value: '2', text: 'EAN13 (12-13 digits)' },
-      { value: '3', text: 'EAN8 (7-8 digits)' },
-      { value: '4', text: 'CODE39 (alphanumeric)' },
-      { value: '5', text: 'ITF (even digits)' },
-      { value: '6', text: 'CODABAR (numeric + special)' },
-      { value: '7', text: 'CODE93 (alphanumeric)' },
-      { value: '8', text: 'CODE128 (full ASCII)', selected: true }
-    ]);
-
-    const barcodeInput = document.createElement('input');
-    barcodeInput.type = 'text';
-    barcodeInput.placeholder = 'Barcode data';
-    barcodeInput.style.width = '100%';
-    barcodeInput.style.padding = '10px';
-    barcodeInput.style.margin = '8px 0';
-    barcodeInput.style.border = '1px solid var(--divider-color)';
-    barcodeInput.style.borderRadius = '6px';
-    barcodeInput.style.fontFamily = 'monospace';
-    barcodeInput.style.boxSizing = 'border-box';
-
-    const barcodePriorityCheck = this.createCheckbox('High Priority');
-    barcodePriorityCheck.style.margin = '8px 0';
-
-    const printBarcodeBtn = document.createElement('button');
-    printBarcodeBtn.innerHTML = '📱 Queue Barcode';
-    this.styleButton(printBarcodeBtn);
-
-    printBarcodeBtn.addEventListener('click', function() {
-      const data = barcodeInput.value;
-      if (!data.trim()) {
-        alert('Please enter barcode data');
-        return;
-      }
+    // Advanced Features
+    const advancedSection = this.createSection('🚀 Advanced Features', `
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div>
+          <h4>🏷️ Label Printing</h4>
+          <div class="form-group">
+            <input type="text" id="label-text" class="form-control" placeholder="Label text" maxlength="20">
+            <div class="hint">Prints vertically down the roll</div>
+          </div>
+          <button class="thermal-button success" id="print-label-btn" style="width: 100%;">
+            🏷️ Print Label
+          </button>
+        </div>
+        
+        <div>
+          <h4>📱 QR Code</h4>
+          <div class="form-group">
+            <input type="text" id="qr-data" class="form-control" placeholder="URL or text">
+            <select id="qr-size" class="form-control" style="margin-top: 8px;">
+              <option value="1">Small</option>
+              <option value="2">Medium</option>
+              <option value="3" selected>Large</option>
+              <option value="4">Extra Large</option>
+            </select>
+          </div>
+          <button class="thermal-button info" id="print-qr-btn" style="width: 100%;">
+            📱 Print QR Code
+          </button>
+        </div>
+      </div>
       
-      self.callService('queue_barcode', {
-        barcode_type: parseInt(barcodeTypeSelect.value),
-        barcode_data: data,
-        priority: barcodePriorityCheck.checked ? 1 : 0
-      });
-      
-      barcodeInput.value = '';
-      self.showQueueNotification('Barcode queued');
-    });
-
-    barcodeContent.appendChild(barcodeTypeSelect);
-    barcodeContent.appendChild(barcodeInput);
-    barcodeContent.appendChild(barcodePriorityCheck);
-    barcodeContent.appendChild(printBarcodeBtn);
-
-    // QR Code Section (Modified for Queue)
-    const qrSection = this.createCollapsibleSection('📱 Queue QR Code');
-    const qrContent = qrSection.content;
-
-    const qrInput = document.createElement('input');
-    qrInput.type = 'text';
-    qrInput.placeholder = 'QR code data (URL, text, etc.)';
-    qrInput.style.width = '100%';
-    qrInput.style.padding = '8px';
-    qrInput.style.margin = '8px 0';
-    qrInput.style.border = '1px solid var(--divider-color)';
-    qrInput.style.borderRadius = '6px';
-    qrInput.style.boxSizing = 'border-box';
-
-    const qrControls = document.createElement('div');
-    qrControls.style.display = 'grid';
-    qrControls.style.gridTemplateColumns = '1fr 1fr 1fr';
-    qrControls.style.gap = '8px';
-    qrControls.style.margin = '8px 0';
-
-    const qrSizeSelect = document.createElement('select');
-    qrSizeSelect.style.padding = '6px';
-    qrSizeSelect.style.border = '1px solid var(--divider-color)';
-    qrSizeSelect.style.borderRadius = '6px';
-    this.addOptions(qrSizeSelect, [
-      { value: '1', text: 'Small' },
-      { value: '2', text: 'Medium' },
-      { value: '3', text: 'Large', selected: true },
-      { value: '4', text: 'X-Large' }
-    ]);
-
-    const qrErrorSelect = document.createElement('select');
-    qrErrorSelect.style.padding = '6px';
-    qrErrorSelect.style.border = '1px solid var(--divider-color)';
-    qrErrorSelect.style.borderRadius = '6px';
-    this.addOptions(qrErrorSelect, [
-      { value: '0', text: 'Low (7%)' },
-      { value: '1', text: 'Medium (15%)', selected: true },
-      { value: '2', text: 'High (25%)' },
-      { value: '3', text: 'Max (30%)' }
-    ]);
-
-    const qrPriorityCheck = this.createCheckbox('Priority');
-
-    qrControls.appendChild(qrSizeSelect);
-    qrControls.appendChild(qrErrorSelect);
-    qrControls.appendChild(qrPriorityCheck);
-
-    const printQrBtn = document.createElement('button');
-    printQrBtn.innerHTML = '📱 Queue QR Code';
-    this.styleButton(printQrBtn);
-
-    printQrBtn.addEventListener('click', function() {
-      const data = qrInput.value;
-      if (!data.trim()) {
-        alert('Please enter QR code data');
-        return;
-      }
-      
-      self.callService('queue_qr_code', {
-        data: data,
-        size: parseInt(qrSizeSelect.value),
-        error_correction: parseInt(qrErrorSelect.value),
-        priority: qrPriorityCheck.checked ? 1 : 0
-      });
-      
-      qrInput.value = '';
-      self.showQueueNotification('QR code queued');
-    });
-
-    qrContent.appendChild(qrInput);
-    qrContent.appendChild(qrControls);
-    qrContent.appendChild(printQrBtn);
-
-    // Batch Processing Section
-    const batchSection = this.createCollapsibleSection('📋 Batch Queue Processing');
-    const batchContent = batchSection.content;
-
-    const batchInput = document.createElement('textarea');
-    batchInput.placeholder = 'Enter multiple lines to print (one per line)...';
-    batchInput.style.width = '100%';
-    batchInput.style.minHeight = '80px';
-    batchInput.style.padding = '12px';
-    batchInput.style.border = '1px solid var(--divider-color)';
-    batchInput.style.borderRadius = '8px';
-    batchInput.style.fontFamily = 'Courier New, monospace';
-    batchInput.style.margin = '8px 0';
-    batchInput.style.boxSizing = 'border-box';
-
-    const batchControls = document.createElement('div');
-    batchControls.style.display = 'grid';
-    batchControls.style.gridTemplateColumns = '1fr 1fr';
-    batchControls.style.gap = '8px';
-    batchControls.style.margin = '8px 0';
-
-    const batchSizeSelect = document.createElement('select');
-    batchSizeSelect.style.padding = '8px';
-    batchSizeSelect.style.border = '1px solid var(--divider-color)';
-    batchSizeSelect.style.borderRadius = '6px';
-    this.addOptions(batchSizeSelect, [
-      { value: 'S', text: 'Small Text' },
-      { value: 'M', text: 'Medium Text', selected: true },
-      { value: 'L', text: 'Large Text' }
-    ]);
-
-    const batchPriorityCheck = this.createCheckbox('High Priority');
-
-    batchControls.appendChild(batchSizeSelect);
-    batchControls.appendChild(batchPriorityCheck);
-
-    const batchBtn = document.createElement('button');
-    batchBtn.innerHTML = '📋 Queue Batch Items';
-    this.styleButton(batchBtn);
-
-    batchBtn.addEventListener('click', function() {
-      const text = batchInput.value;
-      if (!text.trim()) {
-        alert('Please enter items to batch print');
-        return;
-      }
-
-      // Convert newlines to pipe separator for the service
-      const items = text.split('\n').filter(line => line.trim()).join('|');
-      
-      self.callService('batch_print_text', {
-        items: items,
-        text_size: batchSizeSelect.value,
-        priority: batchPriorityCheck.checked ? 1 : 0
-      });
-      
-      batchInput.value = '';
-      const itemCount = items.split('|').length;
-      self.showQueueNotification(`${itemCount} items queued for batch printing`);
-    });
-
-    batchContent.appendChild(batchInput);
-    batchContent.appendChild(batchControls);
-    batchContent.appendChild(batchBtn);
+      <div style="margin-top: 16px;">
+        <h4>📱 Barcode</h4>
+        <div class="two-column">
+          <select id="barcode-type" class="form-control">
+            <option value="0">UPC-A (12 digits)</option>
+            <option value="1">UPC-E (6-8 digits)</option>
+            <option value="2">EAN13 (12-13 digits)</option>
+            <option value="3">EAN8 (7-8 digits)</option>
+            <option value="4">CODE39 (alphanumeric)</option>
+            <option value="5">ITF (even digits)</option>
+            <option value="6">CODABAR (numeric + special)</option>
+            <option value="7">CODE93 (alphanumeric)</option>
+            <option value="8" selected>CODE128 (full ASCII)</option>
+          </select>
+          <input type="text" id="barcode-data" class="form-control" placeholder="Barcode data">
+        </div>
+        <div class="validation-error" id="barcode-error"></div>
+        <button class="thermal-button warning" id="print-barcode-btn" style="width: 100%; margin-top: 8px;">
+          📱 Print Barcode
+        </button>
+      </div>
+    `);
 
     // Assembly
-    content.appendChild(statusDiv);
-    content.appendChild(queueSection);
-    content.appendChild(usageSection);
-    content.appendChild(actionsTitle);
-    content.appendChild(actionsRow1);
-    content.appendChild(actionsRow2);
-    content.appendChild(textSection.section);
-    content.appendChild(twoColSection.section);
-    content.appendChild(barcodeSection.section);
-    content.appendChild(qrSection.section);
-    content.appendChild(batchSection.section);
+    content.appendChild(statusBar);
+    content.appendChild(queueStatus);
+    content.appendChild(paperSection);
+    content.appendChild(quickActions);
+    content.appendChild(textSection);
+    content.appendChild(twoColSection);
+    content.appendChild(advancedSection);
 
     card.appendChild(content);
     root.appendChild(card);
 
     this._config = config;
+    this.setupEventListeners();
+  }
 
-    // Event listeners for all collapsible sections
-    textSection.toggle.addEventListener('click', function() {
-      self.toggleSection(textSection);
+  createSection(title, content) {
+    const section = document.createElement('div');
+    section.className = 'section';
+    
+    const header = document.createElement('div');
+    header.className = 'section-header';
+    header.innerHTML = `
+      <span style="font-weight: 600;">${title}</span>
+      <span class="section-arrow">▼</span>
+    `;
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'section-content';
+    contentDiv.innerHTML = content;
+    
+    section.appendChild(header);
+    section.appendChild(contentDiv);
+    
+    // Toggle functionality
+    header.addEventListener('click', () => {
+      const isOpen = contentDiv.classList.contains('open');
+      contentDiv.classList.toggle('open', !isOpen);
+      header.querySelector('.section-arrow').textContent = isOpen ? '▼' : '▲';
     });
-    twoColSection.toggle.addEventListener('click', function() {
-      self.toggleSection(twoColSection);
-    });
-    barcodeSection.toggle.addEventListener('click', function() {
-      self.toggleSection(barcodeSection);
-    });
-    qrSection.toggle.addEventListener('click', function() {
-      self.toggleSection(qrSection);
-    });
-    batchSection.toggle.addEventListener('click', function() {
-      self.toggleSection(batchSection);
-    });
+    
+    return section;
+  }
 
-    refreshBtn.addEventListener('click', function() {
-      self.callService('wake_printer');
+  setupEventListeners() {
+    const root = this.shadowRoot;
+    
+    // Quick actions
+    root.getElementById('refresh-btn').addEventListener('click', () => this.callService('wake_printer'));
+    root.getElementById('test-btn').addEventListener('click', () => this.addToQueue('test_print', {}));
+    root.getElementById('wake-btn').addEventListener('click', () => this.callService('wake_printer'));
+    root.getElementById('sleep-btn').addEventListener('click', () => this.callService('sleep_printer'));
+    root.getElementById('feed-btn').addEventListener('click', () => this.addToQueue('feed_paper', { lines: 3 }));
+    root.getElementById('separator-btn').addEventListener('click', () => this.addToQueue('print_text', {
+      message: '================================',
+      text_size: 'S',
+      alignment: 'C'
+    }));
+    root.getElementById('clear-queue-btn').addEventListener('click', () => this.clearQueue());
+    root.getElementById('reset-usage').addEventListener('click', () => {
+      if (confirm('Reset paper usage counters?')) {
+        this.callService('reset_paper_usage');
+      }
+    });
+    
+    // Text printing
+    const textInput = root.getElementById('text-input');
+    const textHint = root.getElementById('text-hint');
+    const updateCharLimits = () => {
+      const size = root.getElementById('size-select').value;
+      const rotate = root.getElementById('rotate-check').checked;
+      let maxChars = size === 'S' ? 32 : size === 'M' ? 24 : 16;
+      if (rotate) maxChars = Math.floor(maxChars * 0.7);
+      
+      const remaining = Math.max(0, maxChars - textInput.value.length);
+      textHint.textContent = `Characters remaining: ${remaining}/${maxChars}`;
+      textHint.style.color = remaining < 5 ? 'var(--thermal-error)' : 'var(--secondary-text-color)';
+    };
+    
+    textInput.addEventListener('input', updateCharLimits);
+    root.getElementById('size-select').addEventListener('change', updateCharLimits);
+    root.getElementById('rotate-check').addEventListener('change', updateCharLimits);
+    updateCharLimits();
+    
+    root.getElementById('print-text-btn').addEventListener('click', () => {
+      const text = textInput.value.trim();
+      if (!text) {
+        alert('Please enter some text to print');
+        return;
+      }
+      
+      const data = {
+        message: text,
+        text_size: root.getElementById('size-select').value,
+        alignment: root.getElementById('align-select').value,
+        bold: root.getElementById('bold-check').checked,
+        underline: root.getElementById('underline-check').checked,
+        inverse: root.getElementById('inverse-check').checked,
+        rotation: root.getElementById('rotate-check').checked ? 1 : 0
+      };
+      
+      if (data.rotation) {
+        this.addToQueue('print_rotated_text', data);
+      } else {
+        this.addToQueue('print_text', data);
+      }
+      
+      textInput.value = '';
+      updateCharLimits();
+    });
+    
+    // Receipt printing
+    root.getElementById('print-receipt-btn').addEventListener('click', () => {
+      const leftText = root.getElementById('left-col').value.trim();
+      const rightText = root.getElementById('right-col').value.trim();
+      
+      if (!leftText && !rightText) {
+        alert('Please enter text for at least one column');
+        return;
+      }
+      
+      this.addToQueue('print_two_column', {
+        left_text: leftText,
+        right_text: rightText,
+        fill_dots: root.getElementById('fill-dots').checked,
+        text_size: root.getElementById('receipt-size').value
+      });
+      
+      root.getElementById('left-col').value = '';
+      root.getElementById('right-col').value = '';
+    });
+    
+    // Label printing
+    root.getElementById('print-label-btn').addEventListener('click', () => {
+      const text = root.getElementById('label-text').value.trim();
+      if (!text) {
+        alert('Please enter label text');
+        return;
+      }
+      
+      this.addToQueue('print_rotated_text', {
+        message: text,
+        rotation: 1,
+        size: 'M'
+      });
+      
+      root.getElementById('label-text').value = '';
+    });
+    
+    // QR Code
+    root.getElementById('print-qr-btn').addEventListener('click', () => {
+      const data = root.getElementById('qr-data').value.trim();
+      if (!data) {
+        alert('Please enter QR code data');
+        return;
+      }
+      
+      this.addToQueue('print_qr_code', {
+        data: data,
+        size: parseInt(root.getElementById('qr-size').value),
+        error_correction: 1,
+        label: ''
+      });
+      
+      root.getElementById('qr-data').value = '';
+    });
+    
+    // Barcode validation and printing
+    const validateBarcode = () => {
+      const type = parseInt(root.getElementById('barcode-type').value);
+      const data = root.getElementById('barcode-data').value.trim();
+      const errorDiv = root.getElementById('barcode-error');
+      
+      if (!data) {
+        errorDiv.classList.remove('show');
+        return true;
+      }
+      
+      let error = null;
+      switch (type) {
+        case 0: if (!/^\d{11,12}$/.test(data)) error = 'UPC-A requires 11-12 digits'; break;
+        case 1: if (!/^\d{6,8}$/.test(data)) error = 'UPC-E requires 6-8 digits'; break;
+        case 2: if (!/^\d{12,13}$/.test(data)) error = 'EAN13 requires 12-13 digits'; break;
+        case 3: if (!/^\d{7,8}$/.test(data)) error = 'EAN8 requires 7-8 digits'; break;
+        case 5: if (!/^\d+$/.test(data) || data.length % 2 !== 0) error = 'ITF requires even number of digits'; break;
+        case 8: if (data.length < 2 || data.length > 255) error = 'CODE128: 2-255 characters required'; break;
+      }
+      
+      if (error) {
+        errorDiv.textContent = error;
+        errorDiv.classList.add('show');
+        return false;
+      } else {
+        errorDiv.classList.remove('show');
+        return true;
+      }
+    };
+    
+    root.getElementById('barcode-data').addEventListener('input', validateBarcode);
+    root.getElementById('barcode-type').addEventListener('change', validateBarcode);
+    
+    root.getElementById('print-barcode-btn').addEventListener('click', () => {
+      const data = root.getElementById('barcode-data').value.trim();
+      if (!data) {
+        alert('Please enter barcode data');
+        return;
+      }
+      
+      if (!validateBarcode()) {
+        alert('Please fix barcode validation errors');
+        return;
+      }
+      
+      this.addToQueue('print_barcode', {
+        barcode_type: parseInt(root.getElementById('barcode-type').value),
+        barcode_data: data
+      });
+      
+      root.getElementById('barcode-data').value = '';
     });
   }
 
-  showQueueNotification(message, type = 'success') {
-    const notification = document.createElement('div');
-    notification.innerHTML = `✅ ${message}`;
-    notification.style.position = 'fixed';
-    notification.style.top = '20px';
-    notification.style.right = '20px';
-    notification.style.background = type === 'error' ? 'var(--error-color)' : 
-                                   type === 'warning' ? 'var(--warning-color)' : 'var(--success-color)';
-    notification.style.color = 'white';
-    notification.style.padding = '12px 16px';
-    notification.style.borderRadius = '8px';
-    notification.style.zIndex = '9999';
-    notification.style.fontSize = '14px';
-    notification.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-    notification.style.transform = 'translateX(100%)';
-    notification.style.transition = 'transform 0.3s ease';
+  // Enhanced queue management
+  addToQueue(service, data) {
+    this.currentPrintQueue.push({ service, data, timestamp: Date.now() });
+    this.updateQueueStatus();
     
-    document.body.appendChild(notification);
-    
-    // Animate in
-    setTimeout(() => {
-      notification.style.transform = 'translateX(0)';
-    }, 100);
-    
-    // Animate out and remove
-    setTimeout(() => {
-      notification.style.transform = 'translateX(100%)';
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 300);
-    }, 3000);
+    if (!this.isProcessingQueue) {
+      this.processQueue();
+    }
   }
 
-  createButton(text, action) {
-    const btn = document.createElement('button');
-    btn.innerHTML = text;
-    this.styleButton(btn);
+  async processQueue() {
+    if (this.currentPrintQueue.length === 0) {
+      this.isProcessingQueue = false;
+      this.updateQueueStatus();
+      return;
+    }
+
+    this.isProcessingQueue = true;
+    this.updateQueueStatus();
+
+    while (this.currentPrintQueue.length > 0) {
+      const job = this.currentPrintQueue.shift();
+      
+      try {
+        await this.callServiceAsync(job.service, job.data);
+        // Add delay between print jobs for printer stability
+        await this.delay(500);
+      } catch (error) {
+        console.error('Print job failed:', error);
+        // Continue with next job rather than stopping the entire queue
+      }
+      
+      this.updateQueueStatus();
+    }
+
+    this.isProcessingQueue = false;
+    this.updateQueueStatus();
+  }
+
+  clearQueue() {
+    this.currentPrintQueue = [];
+    this.updateQueueStatus();
+  }
+
+  updateQueueStatus() {
+    const queueIndicator = this.shadowRoot.getElementById('queue-indicator');
+    const queueStatus = this.shadowRoot.getElementById('queue-status');
+    const statusDot = this.shadowRoot.getElementById('status-dot');
     
-    if (typeof action === 'string') {
-      btn.addEventListener('click', () => this.callService(action));
-    } else if (typeof action === 'function') {
-      btn.addEventListener('click', action);
+    if (this.isProcessingQueue && this.currentPrintQueue.length > 0) {
+      queueIndicator.classList.add('active');
+      queueStatus.classList.add('active');
+      queueStatus.textContent = `Queue: ${this.currentPrintQueue.length} jobs pending`;
+      statusDot.className = 'status-dot printing';
+    } else if (this.currentPrintQueue.length > 0) {
+      queueIndicator.classList.remove('active');
+      queueStatus.classList.add('active');
+      queueStatus.textContent = `Queue: ${this.currentPrintQueue.length} jobs queued`;
+      statusDot.className = 'status-dot warning';
+    } else {
+      queueIndicator.classList.remove('active');
+      queueStatus.classList.remove('active');
+      statusDot.className = 'status-dot';
+    }
+  }
+
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  callService(service, data = {}) {
+    if (!this._hass) {
+      console.error('Home Assistant not available');
+      return;
     }
     
-    return btn;
-  }
-
-  styleButton(btn) {
-    btn.style.flex = '1';
-    btn.style.minWidth = '100px';
-    btn.style.padding = '10px';
-    btn.style.border = 'none';
-    btn.style.borderRadius = '8px';
-    btn.style.background = 'var(--primary-color)';
-    btn.style.color = 'var(--text-primary-color)';
-    btn.style.cursor = 'pointer';
-    btn.style.fontSize = '14px';
-    btn.style.transition = 'all 0.2s ease';
-    
-    btn.addEventListener('mouseenter', function() {
-      this.style.filter = 'brightness(1.1)';
-      this.style.transform = 'translateY(-1px)';
-    });
-    btn.addEventListener('mouseleave', function() {
-      this.style.filter = 'none';
-      this.style.transform = 'translateY(0)';
-    });
-  }
-
-  createCollapsibleSection(title) {
-    const section = document.createElement('div');
-    section.style.margin = '16px 0';
-
-    const toggle = document.createElement('div');
-    toggle.style.cursor = 'pointer';
-    toggle.style.display = 'flex';
-    toggle.style.justifyContent = 'space-between';
-    toggle.style.alignItems = 'center';
-    toggle.style.padding = '12px';
-    toggle.style.background = 'var(--divider-color)';
-    toggle.style.borderRadius = '8px';
-    toggle.style.margin = '8px 0';
-    toggle.style.transition = 'all 0.2s ease';
-
-    const titleSpan = document.createElement('span');
-    titleSpan.innerHTML = title;
-    titleSpan.style.fontWeight = 'bold';
-
-    const arrow = document.createElement('span');
-    arrow.innerHTML = '▼';
-
-    toggle.appendChild(titleSpan);
-    toggle.appendChild(arrow);
-
-    const content = document.createElement('div');
-    content.style.display = 'none';
-    content.style.marginTop = '8px';
-    content.style.padding = '12px';
-    content.style.border = '1px solid var(--divider-color)';
-    content.style.borderRadius = '8px';
-
-    section.appendChild(toggle);
-    section.appendChild(content);
-
-    return { section, toggle, content, arrow, open: false };
-  }
-
-  toggleSection(sectionObj) {
-    sectionObj.open = !sectionObj.open;
-    sectionObj.content.style.display = sectionObj.open ? 'block' : 'none';
-    sectionObj.arrow.innerHTML = sectionObj.open ? '▲' : '▼';
-  }
-
-  addOptions(select, options) {
-    options.forEach(opt => {
-      const option = document.createElement('option');
-      option.value = opt.value;
-      option.innerHTML = opt.text;
-      if (opt.selected) option.selected = true;
-      select.appendChild(option);
-    });
-  }
-
-  createCheckbox(label) {
-    const container = document.createElement('label');
-    container.style.display = 'flex';
-    container.style.alignItems = 'center';
-    container.style.gap = '6px';
-    container.style.padding = '6px';
-    container.style.background = 'var(--secondary-background-color)';
-    container.style.borderRadius = '6px';
-    container.style.cursor = 'pointer';
-    container.style.fontSize = '14px';
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.style.margin = '0';
-
-    const labelText = document.createElement('span');
-    labelText.innerHTML = label;
-
-    container.appendChild(checkbox);
-    container.appendChild(labelText);
-
-    container.checked = checkbox.checked;
-    Object.defineProperty(container, 'checked', {
-      get: () => checkbox.checked,
-      set: (value) => { checkbox.checked = value; }
-    });
-
-    return container;
-  }
-
-  callService(service, data) {
-    if (!data) data = {};
+    const serviceName = `${this.entityBase}_${service}`;
+    console.log(`Calling service: esphome.${serviceName}`, data);
     
     try {
-      const entityParts = this._config.entity.split('.');
-      let deviceName = entityParts[1];
-      
-      // Clean up device name
-      deviceName = deviceName.replace(/_printer_wake$/, '');
-      deviceName = deviceName.replace(/_wake$/, '');
-      
-      const serviceName = deviceName + '_' + service;
-      
-      console.log('Calling queue service: esphome.' + serviceName, data);
       this._hass.callService('esphome', serviceName, data);
-      
     } catch (error) {
       console.error('Service call failed:', error);
-      alert('Service call failed: ' + error.message);
+      alert(`Service call failed: ${error.message}`);
     }
+  }
+
+  async callServiceAsync(service, data = {}) {
+    return new Promise((resolve, reject) => {
+      if (!this._hass) {
+        reject(new Error('Home Assistant not available'));
+        return;
+      }
+      
+      const serviceName = `${this.entityBase}_${service}`;
+      console.log(`Calling async service: esphome.${serviceName}`, data);
+      
+      try {
+        this._hass.callService('esphome', serviceName, data).then(resolve).catch(reject);
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   set hass(hass) {
@@ -858,87 +827,88 @@ class ThermalPrinterCard extends HTMLElement {
     
     if (!this._config || !this._config.entity) return;
 
-    // Update status
-    const statusText = this.shadowRoot.getElementById('status-text');
+    const root = this.shadowRoot;
+    
+    // Update printer status
     const entity = hass.states[this._config.entity];
-    if (statusText && entity) {
-      statusText.innerHTML = entity.state === 'on' ? 'Ready' : 'Offline';
-    }
-
-    // Update queue status
-    const queueLengthSpan = this.shadowRoot.getElementById('queue-length');
-    const queueLengthSensor = hass.states['sensor.thermal_printer_queue_print_queue_length'];
-    if (queueLengthSpan && queueLengthSensor) {
-      const length = parseInt(queueLengthSensor.state) || 0;
-      queueLengthSpan.innerHTML = length.toString();
+    const statusText = root.getElementById('status-text');
+    const statusDot = root.getElementById('status-dot');
+    
+    if (entity) {
+      const isOnline = entity.state === 'on';
+      statusText.textContent = isOnline ? 'Printer Ready' : 'Printer Offline';
       
-      // Color code based on queue length
-      if (length === 0) {
-        queueLengthSpan.style.color = 'var(--success-color)';
-      } else if (length < 5) {
-        queueLengthSpan.style.color = 'var(--warning-color)';
-      } else {
-        queueLengthSpan.style.color = 'var(--error-color)';
+      if (!this.isProcessingQueue) {
+        statusDot.className = isOnline ? 'status-dot' : 'status-dot offline';
       }
     }
 
-    // Update busy status
-    const busyStatusSpan = this.shadowRoot.getElementById('busy-status');
-    const busySensor = hass.states['binary_sensor.thermal_printer_queue_printer_busy'];
-    if (busyStatusSpan && busySensor) {
-      const isBusy = busySensor.state === 'on';
-      busyStatusSpan.innerHTML = isBusy ? 'Printing...' : 'Ready';
-      busyStatusSpan.parentElement.innerHTML = 
-        (isBusy ? '🔴' : '🟢') + ' <span id="busy-status">' + 
-        (isBusy ? 'Printing...' : 'Ready') + '</span>';
-    }
-
-    // Update jobs processed
-    const jobsProcessedSpan = this.shadowRoot.getElementById('jobs-processed');
-    const jobsSensor = hass.states['sensor.thermal_printer_queue_total_jobs_processed'];
-    if (jobsProcessedSpan && jobsSensor) {
-      jobsProcessedSpan.innerHTML = jobsSensor.state || '0';
+    // Update paper status
+    const paperEntity = hass.states[`binary_sensor.${this.entityBase}_paper_loaded`];
+    if (paperEntity && paperEntity.state === 'off') {
+      statusText.textContent = 'Paper Out';
+      statusDot.className = 'status-dot error';
     }
 
     // Update usage sensors
-    const usageSensor = hass.states['sensor.thermal_printer_queue_paper_usage_percent'];
-    if (usageSensor) {
-      const usageFill = this.shadowRoot.getElementById('usage-fill');
-      const usageText = this.shadowRoot.getElementById('usage-text');
-      const percentage = parseFloat(usageSensor.state) || 0;
+    this.updateUsageSensors(hass);
+  }
+
+  updateUsageSensors(hass) {
+    const root = this.shadowRoot;
+    
+    // Paper usage percentage
+    const usagePercentEntity = hass.states[`sensor.${this.entityBase}_paper_usage_percent`];
+    if (usagePercentEntity) {
+      const percentage = parseFloat(usagePercentEntity.state) || 0;
+      const usageFill = root.getElementById('usage-fill');
+      const usageText = root.getElementById('usage-text');
       
       if (usageFill) usageFill.style.width = Math.min(percentage, 100) + '%';
-      if (usageText) usageText.innerHTML = percentage.toFixed(1) + '%';
+      if (usageText) usageText.textContent = percentage.toFixed(1) + '%';
     }
 
-    const usageMmSensor = hass.states['sensor.thermal_printer_queue_paper_usage_mm'];
-    if (usageMmSensor) {
-      const usageMm = this.shadowRoot.getElementById('usage-mm');
-      if (usageMm) usageMm.innerHTML = parseFloat(usageMmSensor.state).toFixed(1);
+    // Paper usage in mm
+    const usageMmEntity = hass.states[`sensor.${this.entityBase}_paper_usage_mm`];
+    if (usageMmEntity) {
+      const usageMm = root.getElementById('usage-mm');
+      if (usageMm) usageMm.textContent = parseFloat(usageMmEntity.state).toFixed(1);
     }
 
-    const linesSensor = hass.states['sensor.thermal_printer_queue_lines_printed'];
-    if (linesSensor) {
-      const linesPrinted = this.shadowRoot.getElementById('lines-printed');
-      if (linesPrinted) linesPrinted.innerHTML = linesSensor.state;
+    // Lines printed
+    const linesEntity = hass.states[`sensor.${this.entityBase}_lines_printed`];
+    if (linesEntity) {
+      const linesPrinted = root.getElementById('lines-printed');
+      if (linesPrinted) linesPrinted.textContent = linesEntity.state;
+    }
+
+    // Characters printed
+    const charsEntity = hass.states[`sensor.${this.entityBase}_characters_printed`];
+    if (charsEntity) {
+      const charsPrinted = root.getElementById('chars-printed');
+      if (charsPrinted) charsPrinted.textContent = charsEntity.state;
     }
   }
 
   getCardSize() {
-    return 10;
+    return 8;
   }
 }
 
+// Register the custom element
 customElements.define('thermal-printer-card', ThermalPrinterCard);
 
+// Add to custom cards registry
 if (!window.customCards) {
   window.customCards = [];
 }
 
 window.customCards.push({
   type: 'thermal-printer-card',
-  name: 'Queue-Aware Thermal Printer Card',
-  description: 'Complete thermal printer control with intelligent queue system'
+  name: 'Enhanced Thermal Printer Card',
+  description: 'Complete thermal printer control with queue management and enhanced features',
+  preview: true,
+  documentationURL: 'https://github.com/yourusername/thermal-printer-card'
 });
 
-console.log('Queue-Aware Thermal Printer Card loaded successfully!');
+console.log('Enhanced Thermal Printer Card with Queue Management loaded successfully!');
